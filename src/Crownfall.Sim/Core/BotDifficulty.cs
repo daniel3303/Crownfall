@@ -16,4 +16,11 @@ public enum BotDifficulty
 
     [Display(Name = "Hard")]
     Hard,
+
+    [Display(Name = "Brutal")]
+    Brutal,
+
+    /// <summary>The tutorial's sparring partner: it builds an economy and never leaves home.</summary>
+    [Display(Name = "Passive")]
+    Passive,
 }

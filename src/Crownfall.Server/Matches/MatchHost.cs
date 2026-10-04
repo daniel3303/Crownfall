@@ -28,6 +28,7 @@ public sealed class MatchHost : IDisposable
     private CancellationTokenSource _cancellation;
     private Task _loop;
     private Game _game;
+    private MatchStatsRecorder _stats;
     private int _failures;
 
     public MatchHost(string id, MatchConfig config, bool isQuickPlay, ContentDb content, ILogger logger, TimeProvider time)
@@ -247,6 +248,7 @@ public sealed class MatchHost : IDisposable
     {
         var setups = _seats.All.Select(s => new PlayerSetup { Name = s.Name, Team = s.Team, Race = s.Race, IsBot = s.IsBot }).ToList();
         _game = new Game(_content, Config, setups);
+        _stats = new MatchStatsRecorder(_game);
         foreach (var seat in _seats.All)
         {
             seat.Player = _game.Players[seat.Index];
@@ -262,11 +264,12 @@ public sealed class MatchHost : IDisposable
     {
         _game.Step(_pendingCommands);
         _pendingCommands.Clear();
+        _stats.Observe(_game);
         TickFanOut.Send(_game, _seats.Humans, _messages);
         if (_game.IsOver)
         {
             Status.MarkEnded(_time.GetUtcNow());
-            Broadcast(_messages.End());
+            Broadcast(_messages.End(_stats));
         }
     }
 

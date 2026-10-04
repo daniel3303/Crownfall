@@ -3,6 +3,7 @@ import { content } from "../content/content";
 import { session } from "../session";
 import { enterFullscreen } from "./fullscreen";
 import { Icon, Portrait } from "./icons";
+import { bannerStyle, frameStyle, OwnFlair, useLook } from "./meta/cosmetics";
 import { teamColor, TEAM_NAMES } from "./palette";
 import { loadProfile, saveProfile } from "./profile";
 import { useHud } from "./store";
@@ -19,6 +20,7 @@ const SHARING_LABELS: Record<string, string> = {
 export function LobbyScreen() {
   const lobby = useHud((s) => s.lobby);
   const [copied, setCopied] = useState(false);
+  const look = useLook();
   if (!lobby) return null;
   const me = lobby.seats.find((s) => s.index === lobby.you);
   const teams = Array.from({ length: lobby.config.teams }, (_, team) => lobby.seats.filter((s) => s.team === team));
@@ -48,11 +50,12 @@ export function LobbyScreen() {
             <h2 style={{ color: teamColor(team) }}>{TEAM_NAMES[team]}</h2>
             <ul>
               {seats.map((seat) => (
-                <li key={seat.index} className={seat.index === lobby.you ? "me" : ""}>
-                  <span className="seat-portrait"><Portrait id={content.races.find((r) => r.id === seat.race)?.hero ?? ""} /></span>
+                <li key={seat.index} className={seat.index === lobby.you ? "me" : ""} style={seat.index === lobby.you ? bannerStyle(look.banner) : undefined}>
+                  <span className="seat-portrait" style={seat.index === lobby.you ? frameStyle(look.frame) : undefined}><Portrait id={content.races.find((r) => r.id === seat.race)?.hero ?? ""} /></span>
                   <span className="seat-name">
                     {seat.name}
                     {seat.isHost && <> <Icon id="host" /></>}
+                    {seat.index === lobby.you && <OwnFlair />}
                   </span>
                   <small>{seat.isBot ? "bot" : "player"}</small>
                 </li>

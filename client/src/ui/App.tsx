@@ -3,8 +3,9 @@ import { session } from "../session";
 import { GameScreen } from "./GameScreen";
 import { LobbyScreen } from "./LobbyScreen";
 import { Menu } from "./Menu";
+import { AchievementToasts } from "./meta/AchievementToasts";
 import { loadProfile } from "./profile";
-import { useHud } from "./store";
+import { useHud, type HudState } from "./store";
 
 export function App() {
   const screen = useHud((s) => s.screen);
@@ -17,6 +18,15 @@ export function App() {
     }
   }, []);
 
+  return (
+    <>
+      <Screen screen={screen} />
+      <AchievementToasts />
+    </>
+  );
+}
+
+function Screen({ screen }: { screen: HudState["screen"] }) {
   if (screen === "connecting") return <div className="splash">Riding to the battlefield…</div>;
   if (screen === "lobby") return <LobbyScreen />;
   if (screen === "game") return <GameScreen />;

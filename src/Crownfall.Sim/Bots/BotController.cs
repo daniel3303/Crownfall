@@ -21,6 +21,7 @@ public sealed class BotController
     private readonly BotRaids _raids;
     private readonly BotScout _scout;
     private readonly BotFoundationWatch _foundations;
+    private readonly float[] _bonusCarry = new float[Core.Resources.Count];
     private int _nextThinkTick;
 
     public BotController(Game game, Player player)
@@ -57,7 +58,11 @@ public sealed class BotController
             {
                 continue;
             }
-            if (gameEvent is DeathEvent death)
+            if (gameEvent is DepositEvent deposit && deposit.Player == _player.Index)
+            {
+                _bonusCarry[(int)deposit.Resource] += deposit.Amount * _profile.GatherBonus;
+            }
+            else if (gameEvent is DeathEvent death)
             {
                 _memory.Witness(death, _game.Tick);
             }
@@ -66,6 +71,8 @@ public sealed class BotController
                 _memory.Witness(ability, _game.Tick);
             }
         }
+        // Storing can raise a storage notice, so the bonus is paid only once the tick's events are read.
+        PayBonus();
     }
 
     public void Think()
@@ -77,6 +84,11 @@ public sealed class BotController
         _nextThinkTick = _game.Tick + _profile.ThinkTicks;
         var view = BotView.Capture(_game, _player, _foundations.Abandoned);
         _memory.Observe(view);
+        if (_profile.Passive)
+        {
+            ThinkPassive(view);
+            return;
+        }
         _scout.Run(view, _military.Mode);
         _guard.Scan(view);
         _foundations.Track(view, _guard.Threat.IsActive);
@@ -91,5 +103,31 @@ public sealed class BotController
         _military.Run(view, _guard.Threat, _economy.ArmyReserve);
         _guard.Protect(view);
         _heroPilot.Run(view, _military.Mode);
+    }
+
+    /// <summary>Stores the whole part of the gather bonus owed; fractions carry over so no share is lost.</summary>
+    private void PayBonus()
+    {
+        for (var type = 0; type < _bonusCarry.Length; type++)
+        {
+            var whole = (int)_bonusCarry[type];
+            if (whole > 0)
+            {
+                _bonusCarry[type] -= whole;
+                _game.Storage.Store(_player, (Core.ResourceType)type, whole);
+            }
+        }
+    }
+
+    /// <summary>Economy and upgrades only: a passive bot never scouts, raids, trains soldiers or sends its hero out.</summary>
+    private void ThinkPassive(BotView view)
+    {
+        _guard.Scan(view);
+        _foundations.Track(view, _guard.Threat.IsActive);
+        _composer.Plan(_economy.Available);
+        _economy.Prepare(view);
+        _economy.Run(view, _composer.Mix, _guard, urgent: false);
+        _heroUpgrades.Run(view);
+        _upgrades.Run(view, _economy.ArmyReserve, urgent: false);
     }
 }

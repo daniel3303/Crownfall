@@ -68,10 +68,12 @@ public sealed class MatchRegistry : IDisposable
         return Create(new MatchConfig(), isQuickPlay: true);
     }
 
+    /// <summary>Joinable custom lobbies; tutorials (a passive bot) are private and never listed.</summary>
     public IReadOnlyList<MatchHost> OpenLobbies()
     {
         return _matches.Values
             .Where(m => !m.IsQuickPlay && m.Phase == MatchPhase.Lobby && m.Status.OpenSeats > 0 && m.Status.HumanCount > 0)
+            .Where(m => m.Config.Difficulty != BotDifficulty.Passive)
             .OrderByDescending(m => m.CreatedAt)
             .ToList();
     }

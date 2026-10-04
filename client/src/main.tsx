@@ -7,6 +7,7 @@ import "@fontsource-variable/inter";
 import "@fontsource/cinzel/latin-600.css";
 import "@fontsource/cinzel/latin-700.css";
 import "./ui/styles.css";
+import "./ui/meta/meta.css";
 
 if (import.meta.env.DEV) Object.assign(window, { crownfall: { session, store } });
 

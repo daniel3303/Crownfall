@@ -97,25 +97,35 @@ public sealed class LobbyMessageBuilder
         };
     }
 
-    public EndMessage End()
+    public EndMessage End(MatchStatsRecorder stats)
     {
         var game = _match.Game;
         return new EndMessage
         {
             WinningTeam = game.WinningTeam,
-            Players = game.Players.Select(p => new EndPlayerView
+            DurationSeconds = game.Tick / _content.Rules.TickRate,
+            Players = game.Players.Select(p =>
             {
-                Index = p.Index,
-                Name = p.Name,
-                Team = p.Team,
-                IsBot = p.IsBot,
-                Score = p.Stats.Score,
-                Gathered = p.Stats.Gathered,
-                Kills = p.Stats.Kills,
-                Losses = p.Stats.Losses,
-                UnitsTrained = p.Stats.UnitsTrained,
-                HeroLevel = p.HeroState.Level,
+                var tally = stats.Tally(p.Index);
+                return new EndPlayerView
+                {
+                    Index = p.Index,
+                    Name = p.Name,
+                    Team = p.Team,
+                    IsBot = p.IsBot,
+                    Score = p.Stats.Score,
+                    Gathered = p.Stats.Gathered,
+                    Kills = p.Stats.Kills,
+                    Losses = p.Stats.Losses,
+                    UnitsTrained = p.Stats.UnitsTrained,
+                    HeroLevel = p.HeroState.Level,
+                    SoldiersTrained = tally.SoldiersTrained,
+                    BuildingsBuilt = p.Stats.BuildingsBuilt,
+                    HeroKills = tally.HeroKills,
+                    HeroDeaths = tally.HeroDeaths,
+                };
             }).ToList(),
+            Timeline = stats.Timeline(),
         };
     }
 

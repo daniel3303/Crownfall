@@ -114,6 +114,18 @@ describe("buildingData", () => {
     expect(heights.at(-1)).toBeLessThan(topOf(buildingData("house", 2, 1, 0, FINISHED)));
   });
 
+  it("states each look's height just under its highest tip, so a health bar 0.25 above clears the pennants", () => {
+    const tops: [string, number, number][] = [];
+    for (const [id, size] of KINDS) {
+      for (const level of [1, 2, 3]) {
+        const top = Math.max(...Array.from({ length: variantsOf(id) }, (_, variant) => topOf(buildingData(id, size, level, variant, FINISHED))));
+        tops.push([id, level, top]);
+      }
+    }
+    for (const id of WALL_KINDS) for (const level of [1, 2, 3]) tops.push([id, level, topOf(wallPieceData(id, "post", level, FINISHED))]);
+    for (const [id, level, top] of tops) expect(top - buildingHeight(id, level), `${id} level ${level}`).toBeLessThanOrEqual(0.21);
+  });
+
   it("leaves a ruin far lower than the building", () => {
     expect(topOf(buildingData("townCenter", 4, 1, 0, RUIN))).toBeLessThan(buildingHeight("townCenter", 1) * 0.5);
   });

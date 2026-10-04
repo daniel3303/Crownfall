@@ -12,7 +12,7 @@ const out = join(here, "../../client/public/assets/materials");
 const ALBEDO_SIZE = 512;
 const SURFACE_SIZE = 256;
 
-// Order matches MATERIALS in client/src/render/building-kit.ts. Tint and brightness even out the scans' exposure.
+// Order matches BASE_MATERIALS in client/src/render/building-geometry.ts. Tint and brightness even out the scans' exposure.
 const MATERIALS = [
   { name: "stone", id: "castle_wall_slates", brightness: 1.05, saturation: 0.9 },
   { name: "ashlar", id: "medieval_blocks_05", brightness: 1, saturation: 0.85 },

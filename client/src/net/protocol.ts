@@ -79,7 +79,8 @@ export function decodeSnapshot(buffer: ArrayBuffer): SnapshotFrame {
 }
 
 export type Sharing = "separate" | "separateWithTribute" | "shared";
-export type Difficulty = "easy" | "normal" | "hard";
+/** `passive` is the tutorial's bot, which never leaves home; the lobby picker does not offer it. */
+export type Difficulty = "easy" | "normal" | "hard" | "brutal" | "passive";
 export type MapSizeName = "small" | "medium" | "large";
 
 export interface MatchConfig {
@@ -240,12 +241,38 @@ export interface EndPlayer {
   losses: number;
   unitsTrained: number;
   heroLevel: number;
+  /** Soldiers trained, villagers excluded. */
+  soldiersTrained: number;
+  buildingsBuilt: number;
+  /** Enemy heroes this player slew. */
+  heroKills: number;
+  /** Times this player's own hero fell. */
+  heroDeaths: number;
+}
+
+/** One player's samples, aligned with `MatchTimeline.seconds`. */
+export interface PlayerTimeline {
+  index: number;
+  /** Living soldiers, heroes excluded. */
+  army: number[];
+  gathered: number[];
+  score: number[];
+}
+
+/** Stats the server sampled through the match: every `intervalSeconds` from 0, plus the final tick. */
+export interface MatchTimeline {
+  intervalSeconds: number;
+  seconds: number[];
+  players: PlayerTimeline[];
 }
 
 export interface EndMessage {
   t: "end";
+  /** -1 for a draw. */
   winningTeam: number;
+  durationSeconds: number;
   players: EndPlayer[];
+  timeline: MatchTimeline;
 }
 
 export interface ErrorMessage {

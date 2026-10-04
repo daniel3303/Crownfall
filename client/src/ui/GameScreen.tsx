@@ -5,6 +5,7 @@ import { Hud } from "./Hud";
 import { useHud } from "./store";
 import { HoverLabel } from "./tooltip/HoverLabel";
 import { TooltipLayer } from "./tooltip/TooltipLayer";
+import { TutorialOverlay } from "./tutorial/TutorialOverlay";
 
 export function GameScreen() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -13,6 +14,7 @@ export function GameScreen() {
   const end = useHud((s) => s.end);
   const loading = useHud((s) => s.loading);
   const loadError = useHud((s) => s.loadError);
+  const tutorial = useHud((s) => s.match?.config.difficulty === "passive");
 
   useEffect(() => {
     if (canvas.current && overlayRef.current && minimap.current) {
@@ -27,6 +29,7 @@ export function GameScreen() {
       <Hud minimapRef={minimap} />
       <HoverLabel />
       <TooltipLayer />
+      {tutorial && !end && <TutorialOverlay />}
       {loading && <div className="splash game-loading">Raising the banners…</div>}
       {loadError && (
         <div className="splash game-loading game-load-error">

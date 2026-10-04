@@ -67,6 +67,12 @@ public sealed class BotProfile
     public int NovaTargets { get; init; }
     public int StrikeTargets { get; init; }
 
+    /// <summary>Extra share of every deposit the bot banks, villager loads and hero bounties alike; 0 for a fair economy. The bonus never counts toward Stats.Gathered, so end-screen figures show only what was really gathered.</summary>
+    public float GatherBonus { get; init; }
+
+    /// <summary>Never leaves home: no scouting, raids, army or hero trips, so a tutorial player can learn undisturbed.</summary>
+    public bool Passive { get; init; }
+
     public static BotProfile For(BotDifficulty difficulty)
     {
         return difficulty switch
@@ -140,6 +146,80 @@ public sealed class BotProfile
                 HeroRetreatHealth = 0.35f,
                 NovaTargets = 2,
                 StrikeTargets = 3,
+            },
+            // Hard's judgment with faster reactions, earlier attacks and a bonus-fed economy. In bot duels it does not beat
+            // Hard yet (about 45% over 40 seeds): early hero levels decide those games, not tempo or income.
+            BotDifficulty.Brutal => new BotProfile
+            {
+                ThinkTicks = 3,
+                TargetVillagers = 48,
+                VillagerQueue = 2,
+                RebalanceSurplus = 1,
+                RebalancePerThink = 2,
+                BarracksAtVillagers = 9,
+                VillagersPerExtraBarracks = 12,
+                MaxBarracks = 4,
+                BarracksQueue = 2,
+                Towers = 2,
+                MaxTowers = 4,
+                MaxFarms = 40,
+                ConcurrentFarms = 3,
+                MaxStorehouses = 8,
+                ConcurrentHouses = 2,
+                AttackMargin = 1.2f,
+                MinAttackArmy = 5,
+                DefenseRatio = 0.8f,
+                RetreatRatio = 1.3f,
+                CounterWeight = 1f,
+                Micro = true,
+                Kite = true,
+                Dodge = true,
+                RegroupSeconds = 30,
+                ScoutEarly = true,
+                RescoutSeconds = 120,
+                DefendVillagers = true,
+                VillagersFlee = true,
+                MemorySeconds = 180,
+                HeroRetreatHealth = 0.35f,
+                NovaTargets = 2,
+                StrikeTargets = 3,
+                GatherBonus = 0.3f,
+            },
+            BotDifficulty.Passive => new BotProfile
+            {
+                ThinkTicks = 20,
+                TargetVillagers = 12,
+                VillagerQueue = 1,
+                RebalanceSurplus = 3,
+                RebalancePerThink = 1,
+                BarracksAtVillagers = int.MaxValue,
+                VillagersPerExtraBarracks = int.MaxValue,
+                MaxBarracks = 0,
+                BarracksQueue = 0,
+                Towers = 0,
+                MaxTowers = 0,
+                MaxFarms = 6,
+                ConcurrentFarms = 1,
+                MaxStorehouses = 2,
+                ConcurrentHouses = 1,
+                AttackMargin = float.MaxValue,
+                MinAttackArmy = int.MaxValue,
+                DefenseRatio = 0f,
+                RetreatRatio = 2.5f,
+                CounterWeight = 0f,
+                Micro = false,
+                Kite = false,
+                Dodge = false,
+                RegroupSeconds = 60,
+                ScoutEarly = false,
+                RescoutSeconds = 0,
+                DefendVillagers = false,
+                VillagersFlee = false,
+                MemorySeconds = 60,
+                HeroRetreatHealth = 0,
+                NovaTargets = 3,
+                StrikeTargets = 4,
+                Passive = true,
             },
             _ => new BotProfile
             {

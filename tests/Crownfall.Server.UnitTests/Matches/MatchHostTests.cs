@@ -191,6 +191,43 @@ public class MatchHostTests
         townCenter.Queue.Should().ContainSingle();
     }
 
+    [Fact]
+    public void GameOver_SendsEndWithDurationAndTimeline()
+    {
+        using var match = QuickMatch();
+        var client = new FakeClient();
+        Join(match, client, "Ana");
+        for (var i = 0; i < 250; i++)
+        {
+            match.Tick();
+        }
+
+        match.Game.End(match.Game.Players[client.Last<WelcomeMessage>().You].Team);
+        match.Tick();
+
+        var end = client.Last<EndMessage>();
+        end.DurationSeconds.Should().Be(match.Game.Tick / Content.Rules.TickRate);
+        end.Timeline.Seconds.Should().StartWith([0, 10, 20]);
+        end.Timeline.Seconds[^1].Should().Be(end.DurationSeconds);
+        end.Timeline.Players.Should().HaveCount(2).And.OnlyContain(p => p.Score.Count == end.Timeline.Seconds.Count);
+        end.Players.Should().OnlyContain(p => p.HeroDeaths == 0 && p.HeroKills == 0);
+    }
+
+    [Fact]
+    public void End_SerializesTheTimelineInCamelCase()
+    {
+        using var match = QuickMatch();
+        var client = new FakeClient();
+        Join(match, client, "Ana");
+        match.Game.End(0);
+        match.Tick();
+
+        var json = WireJson.Serialize(client.Last<EndMessage>());
+
+        json.Should().Contain("\"durationSeconds\":").And.Contain("\"timeline\":{\"intervalSeconds\":10,\"seconds\":[");
+        json.Should().Contain("\"heroKills\":").And.Contain("\"soldiersTrained\":").And.Contain("\"army\":[");
+    }
+
     private static MatchHost CustomMatch(int perTeam = 2)
     {
         var config = new MatchConfig { Teams = 2, PlayersPerTeam = perTeam, MapSize = MapSize.Small, Seed = 5 };

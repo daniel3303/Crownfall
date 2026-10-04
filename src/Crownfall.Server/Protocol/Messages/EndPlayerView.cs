@@ -12,4 +12,11 @@ public sealed class EndPlayerView
     public int Losses { get; init; }
     public int UnitsTrained { get; init; }
     public int HeroLevel { get; init; }
+
+    /// <summary>Soldiers trained, villagers excluded.</summary>
+    public int SoldiersTrained { get; init; }
+
+    public int BuildingsBuilt { get; init; }
+    public int HeroKills { get; init; }
+    public int HeroDeaths { get; init; }
 }

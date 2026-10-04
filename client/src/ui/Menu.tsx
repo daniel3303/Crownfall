@@ -6,6 +6,11 @@ import type { MatchConfig, MatchSummary } from "../net/protocol";
 import { session, type Profile } from "../session";
 import { enterFullscreen } from "./fullscreen";
 import { Icon, Portrait } from "./icons";
+import { AchievementGallery } from "./meta/AchievementGallery";
+import { BotLadder } from "./meta/BotLadder";
+import { DailyChallenges } from "./meta/DailyChallenges";
+import { LegendPanel } from "./meta/LegendPanel";
+import { metaStore } from "./meta/meta-store";
 import { loadProfile, saveProfile } from "./profile";
 import { store, useHud } from "./store";
 
@@ -22,6 +27,10 @@ export function Menu() {
   const [profile, setProfile] = useState<Profile>(loadProfile);
   const [config, setConfig] = useState<MatchConfig>(DEFAULT_CONFIG);
   const [lobbies, setLobbies] = useState<MatchSummary[]>([]);
+
+  useEffect(() => {
+    metaStore.refresh();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -78,6 +87,16 @@ export function Menu() {
             <Icon id="battle" /> Quick Play
           </button>
           <p className="hint">Drops you into a 2v2 now. Bots hold every empty seat and hand it over when a player joins.</p>
+          <button
+            className="btn tutorial-button"
+            onClick={() => {
+              enterFullscreen();
+              void session.tutorial(profile);
+            }}
+          >
+            <Icon id="points" /> Tutorial
+          </button>
+          <p className="hint">A guided match against a bot that never attacks: build, train, fight a wolf camp and upgrade.</p>
           <h3>Sound</h3>
           <VolumeSliders />
         </section>
@@ -97,7 +116,7 @@ export function Menu() {
               ]}
               onChange={(v) => patchConfig({ sharing: v as MatchConfig["sharing"] })}
             />
-            <Select label="Bot skill" value={config.difficulty} options={[["easy", "Easy"], ["normal", "Normal"], ["hard", "Hard"]]} onChange={(v) => patchConfig({ difficulty: v as MatchConfig["difficulty"] })} />
+            <Select label="Bot skill" value={config.difficulty} options={[["easy", "Easy"], ["normal", "Normal"], ["hard", "Hard"], ["brutal", "Brutal"]]} onChange={(v) => patchConfig({ difficulty: v as MatchConfig["difficulty"] })} />
             <Select label="Map" value={config.mapSize} options={[["small", "Small"], ["medium", "Medium"], ["large", "Large"]]} onChange={(v) => patchConfig({ mapSize: v as MatchConfig["mapSize"] })} />
           </div>
           <button
@@ -129,6 +148,25 @@ export function Menu() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section className="panel">
+          <h2>Your legend</h2>
+          <LegendPanel name={profile.name} race={profile.race} />
+          <h3>Bot ladder</h3>
+          <BotLadder
+            onFight={(difficulty) => {
+              enterFullscreen();
+              void session.create({ teams: 2, playersPerTeam: 1, sharing: "separate", difficulty, mapSize: "small" }, profile);
+            }}
+          />
+        </section>
+
+        <section className="panel">
+          <h2>Daily challenges</h2>
+          <DailyChallenges />
+          <h3>Achievements</h3>
+          <AchievementGallery />
         </section>
 
         <section className="panel help">

@@ -1,0 +1,734 @@
+/* Profile progression, daily challenges, bot ladder, achievements, end-screen rewards and graphs, tutorial overlay. */
+
+.meta-icon {
+  flex: none;
+  vertical-align: -0.15em;
+}
+
+/* Bars ------------------------------------------------------------------------ */
+
+.meta-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: #0d0c0b;
+  border: 1px solid #3a3226;
+  overflow: hidden;
+}
+
+.meta-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  transition: width 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.xp-bar {
+  height: 12px;
+  margin-top: 10px;
+}
+
+/* Legend: level, XP and cosmetics ---------------------------------------------- */
+
+.legend-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.legend-portrait {
+  display: block;
+  border-radius: 50%;
+  flex: none;
+}
+
+.legend-portrait .portrait {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+}
+
+.legend-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.legend-who strong {
+  font: 700 17px var(--heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-who small,
+.flair-title {
+  color: var(--gold);
+  font-style: italic;
+}
+
+.legend-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--gold-dim);
+}
+
+.legend-level small {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.legend-level strong {
+  font: 700 24px/1 var(--heading);
+  color: var(--gold);
+}
+
+.customize {
+  margin-top: 4px;
+}
+
+.customize summary {
+  cursor: pointer;
+  color: var(--gold);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.cosmetic-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px;
+  align-items: start;
+  margin-top: 8px;
+}
+
+.cosmetic-label {
+  color: var(--muted);
+  font-size: 12px;
+  padding-top: 6px;
+}
+
+.cosmetic-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cosmetic {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 30px;
+  min-height: 28px;
+  padding: 3px 7px;
+  font-size: 12px;
+  background: #13110f;
+  border: 1px solid #3a3226;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cosmetic:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+
+.cosmetic.active {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+
+.cosmetic:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cosmetic-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.frame-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.crest {
+  display: inline-flex;
+  color: var(--gold);
+}
+
+.own-flair {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  font-weight: 400;
+}
+
+.own-flair .flair-title {
+  font-size: 11px;
+}
+
+/* Bot ladder -------------------------------------------------------------------- */
+
+.ladder-rungs {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rung {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #13110f;
+  border: 1px solid #3a3226;
+}
+
+.rung-icon {
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.rung-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.rung-name small,
+.rung-state {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.rung.won .rung-icon,
+.rung.won strong {
+  color: var(--gold);
+}
+
+.rung.next {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 14px rgba(233, 196, 106, 0.25);
+}
+
+/* Daily challenges ------------------------------------------------------------ */
+
+.daily-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.daily-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.daily-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.daily-text small {
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.daily-list li.complete .daily-text span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.daily-list li.complete .meta-bar > span {
+  background: linear-gradient(90deg, #15803d, var(--ok));
+}
+
+.daily-list.compact {
+  gap: 8px;
+}
+
+/* Achievements -------------------------------------------------------------- */
+
+.achievement-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+}
+
+.achievement {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #13110f;
+  border: 1px solid #2c261c;
+  opacity: 0.55;
+}
+
+.achievement-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.achievement strong {
+  font-size: 13px;
+}
+
+.achievement small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.achievement-icon {
+  font-size: 20px;
+  color: var(--muted);
+}
+
+.achievement.earned {
+  opacity: 1;
+  border-color: var(--gold-dim);
+  background: linear-gradient(#2a2418, #13110f);
+}
+
+.achievement.earned .achievement-icon {
+  color: var(--gold);
+}
+
+/* Toasts ---------------------------------------------------------------------- */
+
+.meta-toasts {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(340px, calc(100vw - 32px));
+}
+
+.meta-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(#2a2418, #15120e);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 18px rgba(233, 196, 106, 0.25);
+  cursor: pointer;
+  animation: meta-toast-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.toast-icon {
+  font-size: 26px;
+  color: var(--gold);
+}
+
+.toast-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.toast-text small {
+  color: var(--gold);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.toast-text strong {
+  font: 700 15px var(--heading);
+}
+
+.toast-text span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@keyframes meta-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+/* End screen --------------------------------------------------------------- */
+
+/* The worn banner fills the local player's scoreboard row, so its text needs room from the gradient's edge. */
+.score-row.me {
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+/* Its own stacking layer, so the HUD's raised badges (hotkeys, hero level) stay beneath the card. */
+.end-screen {
+  z-index: 40;
+}
+
+.end-card.end-rich {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.end-screen p {
+  margin: 4px 0;
+}
+
+.end-rewards {
+  margin: 16px auto 8px;
+  max-width: 560px;
+  text-align: left;
+}
+
+.reward-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.reward-xp {
+  font: 700 30px var(--heading);
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(233, 196, 106, 0.4);
+}
+
+.level-up {
+  color: var(--ok);
+  font-weight: 700;
+  font-style: normal;
+}
+
+.reward-lines {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+
+.reward-lines li {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dashed #2c261c;
+  color: var(--muted);
+}
+
+.reward-lines strong {
+  color: var(--text);
+}
+
+.reward-block h3 {
+  margin: 14px 0 8px;
+}
+
+.reward-chips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reward-chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--gold-dim);
+  background: #13110f;
+}
+
+.reward-chips small {
+  color: var(--muted);
+}
+
+.reward-chips li.earned {
+  color: var(--gold);
+}
+
+.mvp-awards {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.mvp-awards li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 6px;
+  background: #13110f;
+  border: 1px solid #3a3226;
+  min-width: 0;
+}
+
+.mvp-awards li.mine {
+  border-color: var(--gold);
+}
+
+.mvp-awards strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mvp-awards small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.mvp-icon {
+  font-size: 20px;
+  color: var(--gold);
+}
+
+/* Graphs -------------------------------------------------------------------- */
+
+.graphs {
+  margin: 8px 0 16px;
+  text-align: left;
+}
+
+.graph-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.graph-tabs .btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.graph-legend {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.graph-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.graph-legend li.mine {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.line-key {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.graph-frame {
+  position: relative;
+}
+
+.graph-frame svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-y;
+}
+
+.graph-grid {
+  stroke: #2c261c;
+  stroke-width: 1;
+}
+
+.graph-axis {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.graph-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.graph-label.mine {
+  fill: var(--text);
+  font-weight: 700;
+}
+
+.graph-crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.graph-dot {
+  stroke: var(--panel-solid);
+  stroke-width: 2;
+}
+
+.graph-readout {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  min-width: 120px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(13, 12, 11, 0.95);
+  border: 1px solid var(--border);
+  pointer-events: none;
+  font-size: 12px;
+}
+
+.graph-readout small {
+  color: var(--muted);
+}
+
+.readout-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.readout-row span:last-child {
+  color: var(--muted);
+}
+
+.graph-table summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.graph-table table {
+  font-size: 12px;
+}
+
+/* Tutorial ------------------------------------------------------------------ */
+
+.tutorial-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.tutorial {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  z-index: 4;
+  width: min(300px, calc(100vw - 24px));
+  padding: 12px;
+}
+
+.tutorial-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--gold);
+  font-family: var(--heading);
+}
+
+.tutorial-step h3 {
+  margin: 10px 0 4px;
+}
+
+.tutorial-step p {
+  margin: 0;
+  color: var(--text);
+}
+
+.tutorial-steps {
+  margin: 10px 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tutorial-steps li {
+  padding: 1px 0;
+}
+
+.tutorial-steps .tutorial-done {
+  color: var(--ok);
+  text-decoration: line-through;
+}
+
+.tutorial-steps .tutorial-current {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.tutorial-steps .tutorial-skipped {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.tutorial-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .tutorial {
+    width: 240px;
+    font-size: 12px;
+  }
+  .tutorial-steps {
+    display: none;
+  }
+}
