@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writ
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { attachedParts, bakeVertexColors, buildAtlas, concat, crossbowParts, fingerPose, lastPose, ownClip, readDoc, retarget, Rig, rigidParts, shapeParts, simplifierReady, simplify, skinnedParts, transferWeights, weldPositions, writeCharacter } from "./character-kit.mjs";
-import { layer, mountRig, onlyJoints, Pose, poseClip, smoothNormals, stillFrame } from "./character-poses.mjs";
+import { aimedGrip, easedFrom, groundedGrip, layer, mountRig, onlyJoints, Pose, poseClip, smoothNormals, span, steadyJoint, stillFrame } from "./character-poses.mjs";
 import { itchUpload } from "./itch.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +25,8 @@ const ITCH = {
 /** Quaternius' CC0 models on Poly Pizza (page id → model file), all but the wolf, dragon and horse static props. */
 const POLY = {
   wolf: ["P1gU3Qkr9r", "f1d12388-e39b-4157-b32a-646a1d089fc4"],
+  staff: ["PnGRvO4Lwd", "18031dd6-1a26-4fa1-bd09-53c45bd31880"],
+  bow: ["QnpqjLSKFU", "e1abc1c7-47db-48c3-9c65-0879273e8bc8"],
   dragon: ["VBvzjFIYws", "9714f533-5d2d-4cfd-b8f1-c8dfff64a672"],
   whiteHorse: ["bEdE4rmZy9", "3edc2bd9-3378-4b43-a50d-d5e1f858562b"],
   sword: ["9lLmH8Et4K", "65837148-8c3c-42d5-9ce7-c55f9295cc7e"],
@@ -73,7 +75,7 @@ async function polyModel(key) {
 
 /** Triangle budgets per source part (by name), so the whole unit stays near 6k triangles. */
 const BUDGET = [
-  [/^SuperHero_Male#/, 700],
+  [/^SuperHero_Male#|^Superhero_Female#/, 700],
   [/^Eyes#/, 40],
   [/^Hair_Beard#/, 200],
   [/^Hair_/, 300],
@@ -85,7 +87,7 @@ const BUDGET = [
   [/_Legs#/, 380],
   [/_Feet/, 380],
   [/_Hood#/, 380],
-  [/_Pauldron#/, 180],
+  [/_Pauldrons?#/, 180],
 ];
 
 function budgetOf(part, overrides = {}) {
@@ -97,6 +99,8 @@ const weightOn = (influences, names) => influences.reduce((sum, [name, w]) => su
 /** The Superhero head and neck, grafted onto the outfits' body, which only lack a head. */
 const headOnly = (triangle) => triangle.every((influences) => weightOn(influences, ["Head", "neck_01"]) >= 0.5);
 const LEGS = ["thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"];
+/** Trousers below the knee, under a robe. */
+const belowKnees = (triangle) => triangle.every((influences) => weightOn(influences, ["pelvis", "thigh_l", "thigh_r"]) < 0.5);
 /** A bare body minus what trousers and boots cover. */
 const withoutLegs = (triangle) => !triangle.every((influences) => weightOn(influences, LEGS) >= 0.5);
 
@@ -113,6 +117,9 @@ const WOOD = { hue: [5, 50], minSat: 0.25 };
 /** Grips in the bind (T) pose: right fist at the wrist joint, thumb along +Z, fingers along -X, palm down. */
 const RIGHT_FIST = [-0.075, -0.025, 0];
 const sword = (length, hold = 0.07) => ({ joint: "hand_r", axis: "y", flat: "x", dir: [0, 0, 1], up: [-1, 0, 0], at: RIGHT_FIST, length, hold });
+/** The right-hand grip mirrored across the body. */
+const LEFT_FIST = [0.075, -0.025, 0];
+const offhand = (length, hold = 0.07) => ({ joint: "hand_l", axis: "y", flat: "x", dir: [0, 0, 1], up: [1, 0, 0], at: LEFT_FIST, length, hold });
 const shieldOnForearm = (axis, flat, length) => ({ joint: "lowerarm_l", axis, flat, dir: [0, 0, 1], up: [0, 1, 0], at: [0.13, 0.075, 0], length, hold: 0.5 });
 
 /** The hair textures are grey, made to be tinted. */
@@ -133,39 +140,59 @@ async function buildHuman(spec, sources) {
   const rigDoc = await readDoc(spec.rig === "superhero" ? ubc.body : outfits[spec.rig]);
   const rig = new Rig(rigDoc);
   const parts = [];
+  const [skinMaterial, headMesh, headMaterial] = spec.female ? ["MI_Regular_Female", "Superhero_Female", "MI_Superhero_Female"] : ["MI_Regular_Male", "SuperHero_Male", "MI_Superhero_Male"];
   // Dyed hides vary in brightness only: a human complexion shift would grey the orc's green and the troll's blue.
   const skinSurface = { dye: spec.skin, density: 1, tone: spec.skin ? "hide" : "skin" };
-  for (const [outfit, meshes, surfaces] of spec.wear) {
+  for (const [outfit, meshes, surfaces, keepTriangle] of spec.wear) {
     // A surface can swap in one of the outfit's other colour textures.
     const swapped = Object.fromEntries(Object.entries(surfaces).map(([name, s]) => [name, s.texture ? { ...s, image: readFileSync(outfits[s.texture]), key: s.texture } : s]));
-    parts.push(...skinnedParts(await readDoc(outfits[outfit]), rig, { meshes, surfaces: { MI_Regular_Male: skinSurface, ...swapped } }));
+    parts.push(...skinnedParts(await readDoc(outfits[outfit]), rig, { meshes, keepTriangle, surfaces: { [skinMaterial]: skinSurface, ...swapped } }));
   }
-  const ubcDoc = await readDoc(ubc.body);
+  const ubcDoc = await readDoc(spec.female ? ubc.female : ubc.body);
   if (spec.rig === "superhero") {
     parts.push(...skinnedParts(ubcDoc, rig, { meshes: ["SuperHero_Male"], keepTriangle: spec.bareLegs ? undefined : withoutLegs, surfaces: { MI_Superhero_Male: { ...skinSurface, density: 1 } } }));
   } else {
     // The face gets extra texels: it is what the eye goes to, even at a distance.
-    parts.push(...skinnedParts(ubcDoc, rig, { meshes: ["SuperHero_Male"], keepTriangle: headOnly, surfaces: { MI_Superhero_Male: { ...skinSurface, density: 1.5 } } }));
+    parts.push(...skinnedParts(ubcDoc, rig, { meshes: [headMesh], keepTriangle: headOnly, surfaces: { [headMaterial]: { ...skinSurface, density: 1.5 } } }));
   }
   parts.push(...skinnedParts(ubcDoc, rig, { meshes: ["Eyes"], surfaces: { MI_Eyes: { color: [0.12, 0.09, 0.07] } } }));
   for (const style of spec.hair?.styles ?? []) parts.push(...skinnedParts(await readDoc(ubc.hair(style)), rig, { meshes: [style], surfaces: { MI_Hair_1: HAIR(spec.hair.tint), MI_Hair_2: HAIR(spec.hair.tint) } }));
-  const body = parts.filter((p) => /_Body#|SuperHero_Male#|_Arms#/.test(p.name));
+  const body = parts.filter((p) => /_Body#|SuperHero_Male#|Superhero_Female#|_Arms#/.test(p.name));
+  const clips = {};
+  for (const [role, recipe] of Object.entries(spec.clips)) clips[role] = recipe({ ual1, ual2, rig });
   const props = [];
   for (const item of spec.hold ?? []) {
-    let held = item.crossbow ? crossbowParts(rig, item.grip) : rigidParts(await polyModel(item.model), rig, { ...item.grip, name: item.model, tint: item.tint, team: item.team }).map(weldPositions);
+    // An aimed item points its way in a clip's pose (an upright staff while idle) rather than in the bind pose.
+    const grip = item.aim ? aimedGrip(rig, clips[item.aim.clip ?? "Idle"], item.grip, item.aim) : item.grip;
+    if (item.skirt) {
+      props.push(...skirtParts(rig, item.skirt));
+      continue;
+    }
+    if (item.shapes) {
+      props.push(...shapeParts(rig, { name: item.name, joint: item.joint, origin: rig.position(item.joint).map((v, c) => v + item.at[c]), shapes: item.shapes, axes: item.axes }));
+      continue;
+    }
+    let held = item.crossbow ? crossbowParts(rig, grip) : rigidParts(await polyModel(item.model), rig, { ...grip, name: item.model, tint: item.tint, team: item.team }).map(weldPositions);
     if (item.bend) transferWeights(held, body);
     // The item's budget is shared by its primitives in proportion to their size.
     const total = held.reduce((n, p) => n + p.indices.length / 3, 0);
     held = held.map((part) => simplify(part, Math.max(12, Math.round(((item.triangles ?? 300) * part.indices.length) / 3 / total))));
+    if (item.crown) {
+      // Shapes on the item's far end, their +Y along its shaft.
+      const tip = rig.position(grip.joint).map((v, c) => v + (grip.at?.[c] ?? 0) + grip.dir[c] * grip.length * (1 - grip.hold));
+      held.push(...shapeParts(rig, { name: `${item.model}_crown`, joint: grip.joint, origin: tip, shapes: item.crown, axes: [grip.dir, grip.up] }));
+    }
+    // A hand-held item tips over as its bearer falls, and in any other clip listed under `ground`, rather than dig in.
+    const points = held.flatMap((part) => [...part.positions]);
+    for (const role of item.ground ?? (grip.joint.startsWith("hand_") ? ["Death"] : [])) clips[role] = groundedGrip(rig, clips[role], grip, points);
     props.push(...held);
   }
+  clips.Dead = lastPose(clips.Death);
   const baked = await Promise.all(parts.map((part) => (part.surface.bake ? bakeVertexColors(part) : part)));
   const simplified = [...baked.map((part) => simplify(part, budgetOf(part, spec.budget))), ...props];
   if (process.env.PARTS) for (const p of simplified) console.log(`  ${spec.id} ${p.name.padEnd(36)} ${p.indices.length / 3}`);
-  const clips = {};
-  for (const [role, recipe] of Object.entries(spec.clips)) clips[role] = recipe({ ual1, ual2, rig });
-  clips.Dead = lastPose(clips.Death);
-  const restOverrides = fingerPose(ual1, "Sword_Idle");
+  // Fingers keep one pose; a weapon in each hand needs both fists closed.
+  const restOverrides = fingerPose(ual1, spec.fists ?? "Sword_Idle");
   return { rig, parts: simplified, clips, restOverrides };
 }
 
@@ -183,11 +210,144 @@ const HERO_CLIPS = {
   Cast3: ual(1, "Spell_Simple_Shoot"),
 };
 
+/** Casters run with the staff arm as it stands ready and the staff hand level, so the staff stays upright. */
+const STAFF_ARM = ["clavicle_l", "upperarm_l", "lowerarm_l", "hand_l"];
+function casterRun(sources) {
+  const ready = ual(1, "Spell_Simple_Idle_Loop")(sources);
+  const run = layer(onlyJoints(LOCOMOTION.Move(sources), (joint) => !STAFF_ARM.includes(joint)), stillFrame(onlyJoints(ready, (joint) => STAFF_ARM.includes(joint))));
+  return steadyJoint(sources.rig, run, "hand_l", ready);
+}
+/** One shot, then the ready stance until the next, each easing into the other: the cast fills an attack, staff up. */
+function casterAttack(sources) {
+  const shot = ual(1, "Spell_Simple_Shoot")(sources);
+  const rest = span(ual(1, "Spell_Simple_Idle_Loop")(sources), 0, 0.9);
+  return concat(easedFrom(shot, rest, 0.2), easedFrom(rest, shot, 0.3));
+}
+/** Casters stand ready to cast, throw spells and channel. */
+const CASTER_CLIPS = {
+  ...LOCOMOTION,
+  Move: casterRun,
+  Idle: ual(1, "Spell_Simple_Idle_Loop"),
+  Attack: casterAttack,
+  Cast0: ual(1, "Spell_Simple_Enter", "Spell_Simple_Exit"),
+  Cast1: ual(2, "OverhandThrow"),
+  Cast2: ual(1, "Spell_Simple_Enter", "Spell_Simple_Idle_Loop", "Spell_Simple_Exit"),
+  Cast3: ual(1, "Spell_Simple_Shoot", "Spell_Simple_Shoot"),
+};
+/** The bow hero borrows the pistol stance: aim, loose, reach back for the next arrow. */
+const BOW_CLIPS = {
+  ...LOCOMOTION,
+  Idle: ual(1, "Pistol_Idle_Loop"),
+  Attack: ual(1, "Pistol_Shoot", "Pistol_Reload"),
+  Cast0: ual(1, "Pistol_Shoot", "Pistol_Shoot", "Pistol_Shoot"),
+  Cast1: ual(2, "OverhandThrow"),
+  Cast2: ual(1, "Roll"),
+  Cast3: ual(1, "Pistol_Aim_Up", "Pistol_Shoot", "Pistol_Reload"),
+};
+const WHITE_HAIR = [0.85, 0.84, 0.8];
+const GOLD = { color: [0.85, 0.66, 0.3], finish: { roughness: 0.3, metallic: 1 } };
+const BONE = { color: [0.86, 0.82, 0.72], finish: { roughness: 0.6, metallic: 0 } };
+/** A pale crystal set in a gold collar, for the archmage's staff (shaft units: +Y along the staff). */
+const CRYSTAL = [
+  { lathe: [[0.17, 0, 0], [0.11, 0.045, 0.045], [0.05, 0.05, 0.05], [0.01, 0, 0]], color: [0.62, 0.85, 1.0], finish: { roughness: 0.08, metallic: 0 } },
+  { lathe: [[0.035, 0.038, 0.038], [0.0, 0.034, 0.034], [-0.04, 0.026, 0.026]], ...GOLD },
+];
+/** A horned skull with hanging feathers, for the shaman's totem staff. */
+const SKULL = [
+  { lathe: [[0.14, 0, 0], [0.13, 0.045, 0.05], [0.1, 0.065, 0.07], [0.05, 0.065, 0.075], [0.01, 0.045, 0.06], [-0.02, 0.02, 0.03], [-0.03, 0, 0]], ...BONE },
+  { box: [[0.025, 0.07, 0.06], [0.014, 0.012, 0.008]], color: [0.05, 0.04, 0.03], finish: { roughness: 0.9, metallic: 0 } },
+  { box: [[-0.025, 0.07, 0.06], [0.014, 0.012, 0.008]], color: [0.05, 0.04, 0.03], finish: { roughness: 0.9, metallic: 0 } },
+  { box: [[0.085, 0.13, 0], [0.012, 0.055, 0.012], -0.7], ...BONE },
+  { box: [[-0.085, 0.13, 0], [0.012, 0.055, 0.012], 0.7], ...BONE },
+  { box: [[0.05, -0.08, 0.02], [0.012, 0.06, 0.003]], color: [0.6, 0.15, 0.1], finish: { roughness: 0.8, metallic: 0 } },
+  { box: [[-0.04, -0.09, 0.02], [0.012, 0.065, 0.003]], color: [0.85, 0.85, 0.8], finish: { roughness: 0.8, metallic: 0 } },
+];
+/** A leather quiver across the back with fletched arrows (spine units: +Y along the quiver). */
+const QUIVER = [
+  { lathe: [[0.2, 0.05, 0.05], [-0.25, 0.045, 0.045], [-0.26, 0, 0]], color: [0.35, 0.2, 0.1], finish: { roughness: 0.6, metallic: 0 } },
+  { box: [[0.015, 0.25, 0.01], [0.004, 0.06, 0.012]], color: [0.9, 0.9, 0.86], finish: { roughness: 0.8, metallic: 0 } },
+  { box: [[-0.015, 0.24, -0.012], [0.004, 0.06, 0.012]], color: [0.9, 0.9, 0.86], finish: { roughness: 0.8, metallic: 0 } },
+  { box: [[0.0, 0.26, 0.018], [0.004, 0.06, 0.012]], color: [0.6, 0.15, 0.1], finish: { roughness: 0.8, metallic: 0 } },
+];
+
+/** How far behind the skirt's axis its back hangs on the shins, which kick back through it in a stride. */
+const SKIRT_BACK = 0.12;
+/**
+ * A skirt from the belt down (rig space). Its waist (above `top`) moves with the pelvis and the rest with the thighs
+ * from the hip joints down; below the knees its back rides on the shins. `shapes` go all the way round, shared by the
+ * thighs within `side` of the middle, and `seat` of their back stays with the pelvis, so a raised thigh does not pull
+ * the back in through the seat. `flaps` (lathe arcs given for the left side, mirrored for the right) hang from one
+ * leg each and overlap front and back, so each knee pushes its own flap ahead of it.
+ */
+function skirtParts(rig, { name, top, side, seat = 0, shapes, flaps = [] }) {
+  const origin = [0, 0, -0.03];
+  const [hip, knee] = ["thigh_l", "calf_l"].map((joint) => rig.position(joint)[1]);
+  const hem = Math.min(...[...shapes, ...flaps].flatMap((shape) => shape.lathe.map(([y]) => y)));
+  const [pelvis, thighL, thighR, calfL, calfR] = ["pelvis", "thigh_l", "thigh_r", "calf_l", "calf_r"].map((joint) => rig.jointOf(joint));
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+  /** Skins a part; `leftShare(x)` is how much of each vertex the left leg carries. */
+  const hang = (parts, leftShare, held = 0) => {
+    for (const part of parts) {
+      for (let v = 0; v < part.positions.length / 3; v++) {
+        const [x, y, z] = part.positions.subarray(v * 3, v * 3 + 3);
+        const down = clamp((top - y) / (top - hip)) * (1 - held * clamp((origin[2] - z) / SKIRT_BACK));
+        // A skirt hemmed above the knee (a kilt) has no part below it.
+        const shin = knee > hem ? clamp((knee - y) / (knee - hem)) * clamp((origin[2] - z) / SKIRT_BACK) : 0;
+        const left = leftShare(x);
+        const weights = [[pelvis, 1 - down], [thighL, down * (1 - shin) * left], [thighR, down * (1 - shin) * (1 - left)], [calfL, down * shin * left], [calfR, down * shin * (1 - left)]].filter(([, w]) => w > 0);
+        // Below the knee the hip is all thigh, so at most four joints carry a vertex.
+        part.joints.set([...weights.map(([joint]) => joint), 0, 0, 0, 0].slice(0, 4), v * 4);
+        part.weights.set([...weights.map(([, w]) => w), 0, 0, 0, 0].slice(0, 4), v * 4);
+      }
+    }
+    return parts;
+  };
+  const mirrored = (shape) => ({ ...shape, arc: [-shape.arc[1], -shape.arc[0]], lathe: shape.lathe.map(([y, rx, rz]) => [y, rx * FLAP_OVER, rz * FLAP_OVER]) });
+  return [
+    ...hang(shapeParts(rig, { name, joint: "pelvis", origin, shapes, segments: 24 }), (x) => (1 + Math.max(-1, Math.min(1, x / side))) / 2, seat),
+    ...(flaps.length ? hang(shapeParts(rig, { name: `${name}Left`, joint: "pelvis", origin, shapes: flaps, segments: 18 }), () => 1) : []),
+    ...(flaps.length ? hang(shapeParts(rig, { name: `${name}Right`, joint: "pelvis", origin, shapes: flaps.map(mirrored), segments: 18 }), () => 0) : []),
+  ];
+}
+/** The right flap's size against the left, so it lies over it where they overlap instead of flickering through it. */
+const FLAP_OVER = 1.03;
+const TEAM_CLOTH = { color: [0.5, 0.5, 0.5], finish: { roughness: 0.85, metallic: 0 }, team: true };
+/** The archmage's knee-length robe, hemmed in gold. */
+const ROBE = {
+  name: "Robe",
+  top: 1.04,
+  side: 0.1,
+  shapes: [{ lathe: [[1.04, 0.165, 0.165], [0.95, 0.19, 0.18], [0.86, 0.205, 0.186]], ...TEAM_CLOTH, lined: true }],
+  // Each flap wraps its own side and about 25° past the middle, front and back.
+  flaps: [
+    { lathe: [[0.9, 0.205, 0.188], [0.8, 0.215, 0.192], [0.6, 0.24, 0.207], [0.43, 0.255, 0.22]], arc: [-0.45, Math.PI + 0.45], ...TEAM_CLOTH, lined: true },
+    { lathe: [[0.43, 0.257, 0.222], [0.4, 0.262, 0.226]], arc: [-0.45, Math.PI + 0.45], ...GOLD, lined: true },
+  ],
+};
+/** The blademaster's team headband, knotted at the back with two short tails (Head units). */
+const HEADBAND = [
+  { lathe: [[0.03, 0.098, 0.117], [0, 0.101, 0.12]], ...TEAM_CLOTH },
+  { box: [[0.025, -0.04, -0.124], [0.012, 0.045, 0.003], 0.25], ...TEAM_CLOTH },
+  { box: [[-0.02, -0.035, -0.124], [0.012, 0.04, 0.003], -0.3], ...TEAM_CLOTH },
+];
+/** The blademaster's short war kilt over his trousers, cut for the Superhero's wider hips. */
+const KILT = {
+  name: "Kilt",
+  top: 1.06,
+  side: 0.12,
+  seat: 0.5,
+  shapes: [
+    { lathe: [[1.06, 0.18, 0.14], [0.98, 0.21, 0.2], [0.85, 0.24, 0.22], [0.69, 0.26, 0.23]], ...TEAM_CLOTH, lined: true },
+    { lathe: [[0.69, 0.262, 0.232], [0.66, 0.267, 0.236]], ...GOLD, lined: true },
+  ],
+};
+
 const RANGER = ["Male_Ranger_Arms", "Male_Ranger_Body", "Male_Ranger_Body_Belt_1", "Male_Ranger_Body_Belt_2", "Male_Ranger_Legs", "Male_Ranger_Feet_Boots"];
 const PEASANT = ["Male_Peasant_Arms", "Male_Peasant_Body", "Male_Peasant_Legs", "Male_Peasant_Feet"];
 /** Strappy leather pieces keep their colour in vertices so they can be simplified across their many UV islands. */
 const STRAPS = Object.fromEntries(["Male_Ranger_Feet_Boots", "Male_Ranger_Arms_Bracer", "Male_Ranger_Body_Belt_1", "Male_Ranger_Body_Belt_2", "Male_Ranger_Acc_Pauldron"].map((name) => [name, { bake: true }]));
 const rangerCloth = { MI_Ranger: { team: GREEN_CLOTH }, ...STRAPS };
+const FEMALE_STRAPS = Object.fromEntries(["Female_Ranger_Feet", "Female_Ranger_Arms_Bracer", "Female_Ranger_Body_Belt_1", "Female_Ranger_Body_Belt_2", "Female_Ranger_Acc_Pauldrons"].map((name) => [name, { bake: true }]));
 
 const HUMANS = [
   {
@@ -214,7 +374,8 @@ const HUMANS = [
     id: "archer",
     rig: "ranger",
     wear: [["ranger", [...RANGER, "Male_Ranger_Head_Hood", "Male_Ranger_Arms_Bracer"], rangerCloth]],
-    hold: [{ crossbow: true, grip: { joint: "hand_r", axis: "y", flat: "x", dir: [-1, 0, 0], up: [0, 1, 0], at: [-0.08, -0.02, 0.06], length: 0.62, hold: 0.22 } }],
+    // Tipped clear of the ground, the crossbow would stand on its stock beside the corpse; half buried reads better.
+    hold: [{ crossbow: true, grip: { joint: "hand_r", axis: "y", flat: "x", dir: [-1, 0, 0], up: [0, 1, 0], at: [-0.08, -0.02, 0.06], length: 0.62, hold: 0.22 }, ground: [] }],
     clips: { ...LOCOMOTION, Idle: ual(1, "Pistol_Idle_Loop"), Attack: ual(1, "Pistol_Shoot", "Pistol_Reload") },
   },
   {
@@ -254,6 +415,74 @@ const HUMANS = [
     hold: [{ model: "battleAxe", grip: { ...sword(1.3, 0.08), flat: "-x" } }],
     budget: { "SuperHero_Male#": 2200 },
     clips: HERO_CLIPS,
+  },
+  {
+    id: "berserker",
+    rig: "superhero",
+    skin: ORC_SKIN,
+    wear: [
+      ["peasant", ["Male_Peasant_Legs"], { MI_Peasant: { team: true } }],
+      ["ranger", ["Male_Ranger_Feet_Boots", "Male_Ranger_Body_Belt_1", "Male_Ranger_Arms_Bracer"], STRAPS],
+    ],
+    hair: { styles: ["Hair_Buzzed"], tint: BLACK_HAIR },
+    hold: [
+      { model: "axe", grip: sword(0.72, 0.1) },
+      { model: "axe", grip: offhand(0.72, 0.1) },
+    ],
+    budget: { "SuperHero_Male#": 2200 },
+    fists: "Punch_Jab",
+    // A frenzy of three cuts per attack.
+    clips: { ...LOCOMOTION, Idle: ual(1, "Sword_Idle"), Attack: ual(2, "Sword_Regular_Combo") },
+  },
+  {
+    id: "archmage",
+    rig: "ranger",
+    wear: [
+      ["ranger", [...RANGER.filter((mesh) => mesh !== "Male_Ranger_Legs"), "Male_Ranger_Head_Hood", "Male_Ranger_Acc_Pauldron"], rangerCloth],
+      // Only the shins show below the robe; thighs left in would poke through it mid-stride.
+      ["ranger", ["Male_Ranger_Legs"], rangerCloth, belowKnees],
+    ],
+    hair: { styles: ["Hair_Beard"], tint: WHITE_HAIR },
+    hold: [{ model: "staff", grip: offhand(1.75, 0.6), aim: { dir: [0, 1, 0], up: [0, 0, 1] }, crown: CRYSTAL, triangles: 220 }, { skirt: ROBE }],
+    clips: CASTER_CLIPS,
+  },
+  {
+    id: "shaman",
+    rig: "peasant",
+    skin: ORC_SKIN,
+    wear: [
+      // The whole shirt is dyed, since little of the olive wool shows under his gear.
+      ["peasant", ["Male_Peasant_Arms", "Male_Peasant_Body"], { MI_Peasant: { team: true, texture: "peasant2" } }],
+      ["peasant", ["Male_Peasant_Legs", "Male_Peasant_Feet"], { MI_Peasant: { texture: "peasant2" } }],
+      ["ranger", ["Male_Ranger_Acc_Pauldron", "Male_Ranger_Body_Belt_1", "Male_Ranger_Arms_Bracer"], STRAPS],
+    ],
+    hair: { styles: ["Hair_Long", "Hair_Beard"], tint: GREY_HAIR },
+    hold: [{ model: "staff", grip: offhand(1.7, 0.6), aim: { dir: [0, 1, 0], up: [0, 0, 1] }, crown: SKULL, triangles: 220 }],
+    clips: CASTER_CLIPS,
+  },
+  {
+    id: "blademaster",
+    rig: "superhero",
+    skin: ORC_SKIN,
+    wear: [
+      ["peasant", ["Male_Peasant_Legs"], { MI_Peasant: { team: true } }],
+      ["ranger", ["Male_Ranger_Feet_Boots", "Male_Ranger_Acc_Pauldron", "Male_Ranger_Body_Belt_1", "Male_Ranger_Arms_Bracer"], STRAPS],
+    ],
+    hair: { styles: ["Hair_Buns", "Hair_Beard"], tint: BLACK_HAIR },
+    hold: [{ model: "sword", grip: sword(1.15, 0.12) }, { skirt: KILT }, { name: "Headband", joint: "Head", at: [0, 0.125, 0], shapes: HEADBAND }],
+    budget: { "SuperHero_Male#": 2200 },
+    clips: HERO_CLIPS,
+  },
+  {
+    id: "ranger",
+    rig: "rangerFemale",
+    female: true,
+    wear: [["rangerFemale", ["Female_Ranger_Arms", "Female_Ranger_Body", "Female_Ranger_Body_Belt_1", "Female_Ranger_Body_Belt_2", "Female_Ranger_Legs", "Female_Ranger_Feet", "Female_Ranger_Head_Hood", "Female_Ranger_Arms_Bracer", "Female_Ranger_Acc_Pauldrons"], { MI_Ranger: { team: GREEN_CLOTH }, ...FEMALE_STRAPS }]],
+    hold: [
+      { model: "bow", grip: offhand(1.25, 0.5), aim: { dir: [0, 1, 0], up: [0, 0, -1] }, triangles: 300, ground: ["Death", "Cast2"] },
+      { name: "Quiver", joint: "spine_03", at: [0.06, 0.02, -0.17], shapes: QUIVER, axes: [[-0.35, 1, -0.1], [0, 0, -1]] },
+    ],
+    clips: BOW_CLIPS,
   },
   {
     id: "troll",
@@ -303,6 +532,7 @@ async function buildDragon() {
 const RIDER_SCALE = 2.25;
 const SADDLE = [0, 3.42, -0.1];
 const LEG_JOINTS = ["thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"];
+const SHIELD_ARM = ["upperarm_l", "lowerarm_l", "hand_l"];
 /** A grip made for a rider on foot, scaled onto the mounted rig. */
 const mounted = (grip) => ({ ...grip, at: grip.at.map((v) => v * RIDER_SCALE), length: grip.length * RIDER_SCALE });
 
@@ -310,8 +540,8 @@ const mounted = (grip) => ({ ...grip, at: grip.at.map((v) => v * RIDER_SCALE), l
 const STEEL = [0.55, 0.56, 0.58];
 const GREAT_HELM = [
   { lathe: [[0.245, 0, 0], [0.242, 0.07, 0.085], [0.23, 0.098, 0.118], [0.2, 0.107, 0.127], [0.1, 0.108, 0.13], [0, 0.104, 0.126], [-0.045, 0.1, 0.12]], color: STEEL, finish: { roughness: 0.35, metallic: 1 } },
-  { box: [[0, 0.1, 0.13], [0.078, 0.009, 0.012]], color: [0.04, 0.04, 0.04], finish: { roughness: 0.9, metallic: 0 } },
-  { box: [[0, 0.04, 0.13], [0.008, 0.05, 0.01]], color: STEEL, finish: { roughness: 0.35, metallic: 1 } },
+  { box: [[0, 0.1, 0.128], [0.078, 0.009, 0.006]], color: [0.04, 0.04, 0.04], finish: { roughness: 0.9, metallic: 0 } },
+  { box: [[0, 0.04, 0.127], [0.008, 0.05, 0.006]], color: STEEL, finish: { roughness: 0.35, metallic: 1 } },
   { box: [[0, 0.27, 0], [0.012, 0.03, 0.1]], color: [0.5, 0.5, 0.5], finish: { roughness: 0.8, metallic: 0 }, team: true },
 ];
 
@@ -337,11 +567,13 @@ async function buildKnight({ ubc, outfits, ual1, ual2 }) {
   const horse = (name) => ownClip(horseDoc, name, rig);
   const ready = stillFrame(upper(ual1, "Sword_Idle"));
   const sit = stillFrame(poseClip(legs, 0));
+  // The horse falls on its left side; the shield arm goes up out of the way rather than into the ground.
+  const shieldUp = stillFrame(poseClip(new Pose(rig).aim("upperarm_l", "lowerarm_l", [-0.5, 0.8, 0.3]).aim("lowerarm_l", "hand_l", [-0.6, 0.6, 0.4]).locals(), 0));
   const clips = {
     Idle: layer(horse("Idle"), ready, sit),
     Move: layer(horse("Gallop"), ready, sit),
     Attack: layer(stillFrame(horse("Idle")), upper(ual2, "Sword_Regular_A", "Sword_Regular_A_Rec"), sit),
-    Death: layer(horse("Death"), ready, sit),
+    Death: layer(horse("Death"), onlyJoints(ready, (joint) => !SHIELD_ARM.includes(joint)), shieldUp, sit),
   };
   clips.Dead = lastPose(clips.Death);
 
@@ -351,7 +583,8 @@ async function buildKnight({ ubc, outfits, ual1, ual2 }) {
   parts.push(...skinnedParts(riderDoc, rig, { meshes: rider, surfaces: { MI_Regular_Male: { density: 1, tone: "skin" }, ...rangerCloth } }));
   // The head only fills the helm's neck opening.
   parts.push(...skinnedParts(await readDoc(ubc.body), rig, { meshes: ["SuperHero_Male"], keepTriangle: headOnly, surfaces: { MI_Superhero_Male: { density: 0.5, tone: "skin" } } }));
-  const head = rig.position("Head");
+  // Centred a little ahead of the head joint, so the nose stays inside.
+  const head = rig.position("Head").map((v, c) => v + (c === 2 ? 0.012 * RIDER_SCALE : 0));
   const helm = shapeParts(rig, { name: "GreatHelm", joint: "Head", origin: head, scale: RIDER_SCALE, shapes: GREAT_HELM });
   const cloth = shapeParts(rig, { name: "SaddleCloth", joint: "Torso2", origin: [0, 0, 0], shapes: SADDLE_CLOTH });
   const body = parts.filter((p) => /_Body#|_Arms#/.test(p.name));
@@ -379,8 +612,8 @@ async function sources() {
   const outfitBase = join(outfitsDir, "Modular Character Outfits - Fantasy[Standard]");
   const outfitsGltf = join(outfitBase, "Exports/glTF (Godot-Unreal)/Outfits");
   return {
-    ubc: { body: join(ubcBase, "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"), hair: (style) => join(ubcBase, "Hairstyles/Rigged to Head Bone/glTF (Godot -Unreal)", `${style}.gltf`) },
-    outfits: { ranger: join(outfitsGltf, "Male_Ranger.gltf"), peasant: join(outfitsGltf, "Male_Peasant.gltf"), peasant2: join(outfitBase, "Textures/Peasant/T_Peasant_2_BaseColor.png") },
+    ubc: { body: join(ubcBase, "Base Characters/Godot - UE/Superhero_Male_FullBody.gltf"), female: join(ubcBase, "Base Characters/Godot - UE/Superhero_Female_FullBody.gltf"), hair: (style) => join(ubcBase, "Hairstyles/Rigged to Head Bone/glTF (Godot -Unreal)", `${style}.gltf`) },
+    outfits: { ranger: join(outfitsGltf, "Male_Ranger.gltf"), rangerFemale: join(outfitsGltf, "Female_Ranger.gltf"), peasant: join(outfitsGltf, "Male_Peasant.gltf"), peasant2: join(outfitBase, "Textures/Peasant/T_Peasant_2_BaseColor.png") },
     ual1: await readDoc(join(ual1Dir, "Universal Animation Library[Standard]/Unreal-Godot/UAL1_Standard.glb")),
     ual2: await readDoc(join(ual2Dir, "Universal Animation Library 2[Standard]/Unreal-Godot/UAL2_Standard.glb")),
   };

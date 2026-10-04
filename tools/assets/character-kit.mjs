@@ -444,32 +444,37 @@ export function crossbowParts(rig, grip) {
 
 /**
  * Procedural pieces rigidly held by `joint`, modelled about `origin` (rig space) in units of `scale`: lathes, surfaces of
- * revolution about +Y given as rings `[y, radius x, radius z]` top to bottom (radius 0 closes a pole), and boxes
+ * revolution about +Y given as rings `[y, radius x, radius z]` top to bottom (radius 0 closes a pole; `arc` sweeps part
+ * of the way round; `lined` adds the inside face, for cloth seen through its opening), and boxes
  * `[centre, half extents, turn about Z]`. Each shape has a flat sRGB colour and a finish; team shapes go in a part of
- * their own.
+ * their own. `axes` turns the model's +Y and +Z onto two rig directions, to crown a held staff along its shaft.
  */
-export function shapeParts(rig, { name, joint, origin, scale = 1, shapes, segments = 20 }) {
+export function shapeParts(rig, { name, joint, origin, scale = 1, shapes, segments = 20, axes }) {
   const bone = rig.jointOf(joint);
+  const turn = axes ? rotationBetween([0, 1, 0], [0, 0, 1], axes[0], axes[1]) : (v) => v;
   const groups = new Map();
   for (const shape of shapes) {
     const team = shape.team === true;
     if (!groups.has(team)) groups.set(team, { positions: [], normals: [], indices: [], colors: [], materials: [] });
     const g = groups.get(team);
     const base = g.positions.length / 3;
-    const point = (p) => g.positions.push(...p.map((v, c) => origin[c] + v * scale));
+    const point = (p) => g.positions.push(...turn(p).map((v, c) => origin[c] + v * scale));
     let quads = [];
     if (shape.lathe) {
       const rings = shape.lathe;
+      // An `arc` [from, to] (radians from +Z toward +X) sweeps only that far, leaving the lathe open.
+      const [from, to] = shape.arc ?? [0, Math.PI * 2];
+      const columns = shape.arc ? segments + 1 : segments;
       for (const [y, rx, rz] of rings) {
-        for (let s = 0; s < segments; s++) {
-          const a = (s / segments) * Math.PI * 2;
+        for (let s = 0; s < columns; s++) {
+          const a = from + (s / segments) * (to - from);
           point([Math.sin(a) * rx, y, Math.cos(a) * rz]);
         }
       }
       for (let r = 0; r + 1 < rings.length; r++) {
         for (let s = 0; s < segments; s++) {
-          const n = (s + 1) % segments;
-          quads.push([r * segments + s, (r + 1) * segments + s, (r + 1) * segments + n, r * segments + n]);
+          const n = shape.arc ? s + 1 : (s + 1) % segments;
+          quads.push([r * columns + s, (r + 1) * columns + s, (r + 1) * columns + n, r * columns + n]);
         }
       }
     } else {
@@ -482,13 +487,18 @@ export function shapeParts(rig, { name, joint, origin, scale = 1, shapes, segmen
       quads = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [3, 7, 6, 2], [0, 4, 7, 3], [1, 2, 6, 5]];
     }
     const at = (v) => [0, 1, 2].map((c) => g.positions[(base + v) * 3 + c]);
-    const centre = [0, 1, 2].map((c) => {
-      let sum = 0;
-      const count = g.positions.length / 3 - base;
-      for (let v = 0; v < count; v++) sum += g.positions[(base + v) * 3 + c];
-      return sum / count;
-    });
+    // A lathe's centre is on its axis, even when its arc leaves it open; a box's is its middle.
+    const middle = shape.lathe ? shape.lathe.reduce((sum, [y]) => sum + y, 0) / shape.lathe.length : 0;
+    const centre = shape.lathe
+      ? turn([0, middle, 0]).map((v, c) => origin[c] + v * scale)
+      : [0, 1, 2].map((c) => {
+          let sum = 0;
+          const count = g.positions.length / 3 - base;
+          for (let v = 0; v < count; v++) sum += g.positions[(base + v) * 3 + c];
+          return sum / count;
+        });
     const smooth = new Float32Array(g.positions.length - base * 3);
+    const firstIndex = g.indices.length;
     for (const quad of quads) {
       // Wound counter-clockwise seen from outside: the face normal points away from the shape's centre.
       const [p0, p1, p2, p3] = quad.map(at);
@@ -507,6 +517,18 @@ export function shapeParts(rig, { name, joint, origin, scale = 1, shapes, segmen
     }
     if (shape.lathe) {
       for (let v = 0; v < smooth.length / 3; v++) g.normals.push(...normalize([smooth[v * 3], smooth[v * 3 + 1], smooth[v * 3 + 2]]));
+      if (shape.lined) {
+        // The outer face again, wound and lit the other way.
+        const inner = g.positions.length / 3;
+        g.positions.push(...g.positions.slice(base * 3));
+        g.normals.push(...g.normals.slice(base * 3).map((v) => -v));
+        const outer = g.indices.slice(firstIndex);
+        for (let t = 0; t < outer.length; t += 3) {
+          g.indices.push(outer[t] - base + inner, outer[t + 2] - base + inner, outer[t + 1] - base + inner);
+          g.colors.push(...shape.color);
+          g.materials.push(shape.finish.roughness, shape.finish.metallic);
+        }
+      }
     } else {
       // Boxes get a vertex per face corner, so each face keeps its own normal.
       const corners = g.positions.splice(base * 3);

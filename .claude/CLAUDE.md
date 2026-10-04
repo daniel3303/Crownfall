@@ -39,6 +39,8 @@
 - Poly Haven, ambientCG, Quaternius itch.io and Poly Pizza downloads are not versioned; they cache in `tools/assets/.cache`; delete a cached file to take an update.
 - `characters.mjs` names clips by role (`Idle`, `Move`, `Attack`, `Death`, `Dead`, villager `Work`/`Harvest`, hero `Cast0`-`Cast3`); `LOOKS` in `unit-layer.ts` must use the same names.
 - Units stay under ~6k triangles with 512² WebP albedo, normal and surface atlases and quantized attributes (`test/unit-assets.test.ts` checks); `PARTS=1 node characters.mjs` prints per-part triangles.
+- Held items are placed in the bind (T) pose; a staff or bow that must stand upright in a clip takes an `aim` (`aimedGrip`), since a bind-pose grip points wherever that clip turns the hand; a hand-held item tips over in `Death` instead of digging into the ground (`groundedGrip`), and lists any other clip it falls in (a roll) under `ground`.
+- A mounted unit is one skeleton (`mountRig` in `character-poses.mjs`) in its mount's units: the rider is `RIDER_SCALE` times larger there, so its grips scale up by it and its look's `scale` scales down by it.
 - `characters.mjs` needs `unzip`; its first run downloads ~440 MB of Quaternius zips into `tools/assets/.cache/itch`.
 - `portraits.mjs` renders `client/public/assets/portraits/<modelId>.webp` for every built character model, so a model built ahead of its unit already has one, with installed Google Chrome on SwiftShader: no GPU dependence, but bytes can change with the Chrome version; build the unit's glb first.
 - `terrain.mjs` layer order must match `LAYERS` in `client/src/render/terrain-field.ts`, and `materials.mjs` then `buildings.mjs` order must match `MATERIALS` in `client/src/render/building-geometry.ts`.

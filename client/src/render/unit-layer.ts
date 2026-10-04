@@ -44,7 +44,7 @@ const GALLOP_SPEED = 10.1;
 /** The knight's horse gallop, measured on its planted hooves. */
 const HORSE_GALLOP_SPEED = 10.7;
 /** The dragon hovers on the move with its idle flight, so this paces its wingbeat rather than any footfall. */
-const FLIGHT_SPEED = 2.4;
+const FLIGHT_SPEED = 4;
 /**
  * Camera distance under which the shader blends neighbouring animation rows. Farther out the 30 Hz steps are too
  * small to see, so the second set of bone reads is skipped.
@@ -68,6 +68,8 @@ interface Look {
   work?: [string, string];
   /** Hero ability clips by slot. */
   casts?: string[];
+  /** How far its idle and move clips rise above the bind pose, as a factor of its height (a dragon's wingbeat). */
+  top?: number;
 }
 
 /** Clip names follow the roles the asset build gives them (tools/assets/characters.mjs). */
@@ -83,9 +85,15 @@ export const LOOKS: Record<string, Look> = {
   rider: { ...HUMAN, scale: 0.69 },
   paladin: HERO,
   warchief: HERO,
+  archmage: HERO,
+  ranger: HERO,
+  shaman: HERO,
+  blademaster: HERO,
+  berserker: { ...HUMAN, scale: 0.72 },
   wolf: { ...ROLES, stride: GALLOP_SPEED, scale: 0.3 },
   troll: { ...ROLES, stride: LURCH_SPEED, scale: 1.15 },
-  dragon: { ...ROLES, stride: FLIGHT_SPEED, scale: 0.9 },
+  // About 3.2 tiles of wingspan in flight.
+  dragon: { ...ROLES, stride: FLIGHT_SPEED, scale: 0.55, top: 1.15 },
   // Horse units: the rider is modelled 2.25 times larger than on foot, so this matches the footmen's scale.
   knight: { ...ROLES, stride: HORSE_GALLOP_SPEED, scale: 0.31 },
 };
@@ -185,7 +193,7 @@ export class UnitLayer {
 
   heightOf(kind: number): number | undefined {
     const draw = this.kinds[kind];
-    return draw ? draw.model.height * draw.look.scale : undefined;
+    return draw ? draw.model.height * draw.look.scale * (draw.look.top ?? 1) : undefined;
   }
 
   /** Plays a hero's ability clip once. */

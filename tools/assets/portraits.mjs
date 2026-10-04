@@ -27,6 +27,9 @@ const FRAMING = {
   troll: { pitch: -12, drop: 0.3 },
   wolf: { yaw: -48, pitch: 10, drop: 0.2, span: 2.0 },
   dragon: { yaw: -28, pitch: 4, drop: 0.3, span: 2.5 },
+  knight: { yaw: -30, drop: 0.25, span: 2.5 },
+  // Her idle aims the bow across her face; mid-stride it hangs at her side.
+  ranger: { clip: "Move", time: 0.1 },
 };
 
 const PAGE = `<!doctype html><html><body style="margin:0;background:transparent">

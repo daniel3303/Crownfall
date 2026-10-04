@@ -1,5 +1,6 @@
 // Composition helpers beyond one rig and its library clips: a rider joined to a mount's skeleton, poses aimed in world
-// space (riding legs, a bow draw), clips limited to some joints, and smoothed normals for faceted creatures.
+// space (riding legs), grips aimed for a clip's pose, clips limited to some joints, and smoothed normals for faceted
+// creatures.
 import { Document } from "@gltf-transform/core";
 import { invert, multiply, Rig } from "./character-kit.mjs";
 
@@ -153,6 +154,32 @@ export class Pose {
   }
 }
 
+/**
+ * A held item's grip with its bind-pose directions chosen so that at `time` in `clip` the item points along world
+ * `dir` with its flat side toward world `up`: an upright staff or bow in the pose the unit mostly holds.
+ */
+export function aimedGrip(rig, clip, grip, { time = 0, dir, up }) {
+  const locals = new Map();
+  for (const c of clip) {
+    if (c.path !== "rotation") continue;
+    let i = 0;
+    while (i + 1 < c.times.length && c.times[i + 1] <= time) i++;
+    locals.set(c.joint, c.values.slice(i * 4, i * 4 + 4));
+  }
+  const world = new Map();
+  const rotation = (name) => {
+    if (world.has(name)) return world.get(name);
+    const i = rig.jointOf(name);
+    const parentNode = rig.joints[i].getParentNode();
+    const parent = parentNode && rig.index.has(parentNode.getName()) ? rotation(parentNode.getName()) : qFromMatrix(parentNode?.getWorldMatrix?.() ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    world.set(name, qmul(parent, locals.get(name) ?? rig.rest[i].r));
+    return world.get(name);
+  };
+  // Undo how far the hand has turned from the bind pose by then.
+  const back = qinv(qmul(rotation(grip.joint), qinv(qFromMatrix(rig.world[rig.jointOf(grip.joint)]))));
+  return { ...grip, dir: rotate(back, dir), up: rotate(back, up) };
+}
+
 /** A clip holding `pose` (joint → local rotation) for `length` seconds. */
 export function poseClip(pose, length) {
   return [...pose].map(([joint, q]) => ({ joint, path: "rotation", times: [0, length], values: [...q, ...q], interpolation: "LINEAR" }));
@@ -178,6 +205,184 @@ export const clipLength = (clip) => Math.max(0, ...clip.map((c) => c.times[c.tim
 export function layer(...clips) {
   const length = Math.max(1 / 30, ...clips.map(clipLength));
   return clips.flat().map((c) => (c.times.length === 1 ? { ...c, times: [0, length], values: [...c.values, ...c.values] } : c));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Held items through a clip
+
+const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+/** Keys per second of a turned joint's channel. */
+const TURN_RATE = 30;
+
+/** A channel's value at `time`: linear between keys (rotations normalized), held past either end. */
+function sample({ times, values }, time) {
+  const size = values.length / times.length;
+  let i = 0;
+  while (i + 1 < times.length && times[i + 1] <= time) i++;
+  const a = values.slice(i * size, i * size + size);
+  if (i + 1 >= times.length || time <= times[i]) return a;
+  const b = values.slice((i + 1) * size, (i + 2) * size);
+  const f = (time - times[i]) / (times[i + 1] - times[i]);
+  if (size !== 4) return a.map((v, k) => v + (b[k] - v) * f);
+  const sign = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
+  return unit(a.map((v, k) => v + (sign * b[k] - v) * f));
+}
+
+/** A column-major matrix from a translation, a rotation and a scale. */
+function trs([tx, ty, tz], [x, y, z, w], [sx, sy, sz]) {
+  return [
+    (1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx, 0,
+    2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy, 0,
+    2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz, 0,
+    tx, ty, tz, 1,
+  ];
+}
+
+/** Each joint's world matrix in `clip` at `time`; joints the clip leaves alone keep their rest transform. */
+function posed(rig, clip, time) {
+  const channels = new Map(clip.map((c) => [`${c.joint}/${c.path}`, c]));
+  const world = new Map();
+  const matrix = (name) => {
+    if (world.has(name)) return world.get(name);
+    const i = rig.jointOf(name);
+    const parentNode = rig.joints[i].getParentNode();
+    const parent = parentNode && rig.index.has(parentNode.getName()) ? matrix(parentNode.getName()) : (parentNode?.getWorldMatrix?.() ?? IDENTITY);
+    const at = (path, rest) => (channels.has(`${name}/${path}`) ? sample(channels.get(`${name}/${path}`), time) : rest);
+    world.set(name, multiply(parent, trs(at("translation", rig.rest[i].t), at("rotation", rig.rest[i].r), rig.rest[i].s)));
+    return world.get(name);
+  };
+  return matrix;
+}
+
+/** The clip with `joint` re-keyed so its world rotation is `turn(worldMatrix)` in every frame; its parents move as before. */
+function turned(rig, clip, joint, turn) {
+  const length = clipLength(clip);
+  const parent = rig.joints[rig.jointOf(joint)].getParentNode().getName();
+  const frames = Math.max(1, Math.round(length * TURN_RATE));
+  const times = [];
+  const values = [];
+  let last = null;
+  for (let k = 0; k <= frames; k++) {
+    const time = (k / frames) * length;
+    const world = posed(rig, clip, time);
+    let q = qmul(qinv(qFromMatrix(world(parent))), turn(world(joint)));
+    // Neighbouring keys on the same hemisphere, so the blend between them takes the short way round.
+    if (last && q[0] * last[0] + q[1] * last[1] + q[2] * last[2] + q[3] * last[3] < 0) q = q.map((v) => -v);
+    times.push(time);
+    values.push(...q);
+    last = q;
+  }
+  return [...clip.filter((c) => !(c.joint === joint && c.path === "rotation")), { joint, path: "rotation", times, values, interpolation: "LINEAR" }];
+}
+
+/** The clip with `joint` keeping its world rotation from the first frame of `reference`: a staff held upright on the run. */
+export function steadyJoint(rig, clip, joint, reference) {
+  const held = qFromMatrix(posed(rig, reference, 0)(joint));
+  return turned(rig, clip, joint, () => held);
+}
+
+/** Largest number of an item's points `groundedGrip` tests per frame. */
+const GROUND_POINTS = 240;
+/** An item's points this close to the grip turn with the fist, so no tipping lifts them; `groundedGrip` leaves them out. */
+const IN_FIST = 0.1;
+
+/**
+ * The clip with the gripping joint turned, frame by frame, just enough that the held item (`points`, bind space) stays
+ * above the ground: a staff that would dig in as its bearer falls tips toward level instead, its foot sliding along.
+ */
+export function groundedGrip(rig, clip, grip, points, clearance = 0.03) {
+  const bind = qFromMatrix(rig.world[rig.jointOf(grip.joint)]);
+  const pivot = rig.position(grip.joint);
+  const step = Math.max(1, Math.ceil(points.length / 3 / GROUND_POINTS));
+  const offsets = [];
+  for (let v = 0; v < points.length / 3; v += step) {
+    const offset = [0, 1, 2].map((c) => points[v * 3 + c] - pivot[c]);
+    if (Math.hypot(...offset) > IN_FIST) offsets.push(offset);
+  }
+  // The rise the item was last drawn at, kept through frames where no tipping clears the ground.
+  let last = null;
+  return turned(rig, clip, grip.joint, (m) => {
+    const hand = qFromMatrix(m);
+    const turn = qmul(hand, qinv(bind));
+    const lowest = (q) => m[13] + Math.min(...offsets.map((o) => rotate(q, o)[1]));
+    const along = unit(rotate(turn, grip.dir));
+    if (lowest(turn) >= clearance) {
+      last = along[1];
+      return hand;
+    }
+    const level = Math.hypot(along[0], along[2]) > 1e-6 ? unit([along[0], 0, along[2]]) : [0, 0, 1];
+    // The item's direction with rise r (its y), keeping its heading.
+    const toward = (rise) => qFromTo(along, [level[0] * Math.sqrt(1 - rise * rise), rise, level[2] * Math.sqrt(1 - rise * rise)]);
+    const clear = (rise) => lowest(qmul(toward(rise), turn)) >= clearance;
+    // The rise nearest the clip's own that clears the ground, refined between grid steps. When none does, the last one
+    // drawn or the clip's own, whichever stays higher.
+    const grid = Array.from({ length: 41 }, (_, k) => -1 + k / 20);
+    const fits = grid.filter(clear);
+    let rise;
+    if (fits.length === 0) {
+      const height = (r) => lowest(qmul(toward(r), turn));
+      rise = last !== null && height(last) > height(along[1]) ? last : along[1];
+    } else {
+      rise = fits.reduce((best, r) => (Math.abs(r - along[1]) < Math.abs(best - along[1]) ? r : best));
+      let out = Math.max(-1, Math.min(1, rise + (along[1] > rise ? 0.05 : -0.05)));
+      if (!clear(out)) {
+        for (let k = 0; k < 12; k++) {
+          const mid = (rise + out) / 2;
+          if (clear(mid)) rise = mid;
+          else out = mid;
+        }
+      }
+    }
+    last = rise;
+    return qmul(toward(rise), hand);
+  });
+}
+
+/** The clip between `from` and `to` seconds, starting at 0. */
+export function span(clip, from, to) {
+  return clip.map((c) => {
+    const times = [0];
+    const values = [...sample(c, from)];
+    const size = values.length;
+    c.times.forEach((t, i) => {
+      if (t <= from || t >= to) return;
+      times.push(t - from);
+      values.push(...c.values.slice(i * size, (i + 1) * size));
+    });
+    times.push(to - from);
+    values.push(...sample(c, to));
+    return { ...c, times, values };
+  });
+}
+
+/**
+ * The clip easing out of `pose` (each channel's last key) over its first `seconds`: every channel starts at the pose and
+ * blends into its own motion, so the clip follows another back to back without a pop.
+ */
+export function easedFrom(clip, pose, seconds) {
+  const start = new Map(pose.map((c) => [`${c.joint}/${c.path}`, c.values.slice(c.values.length - c.values.length / c.times.length)]));
+  const length = clipLength(clip);
+  return clip.map((c) => {
+    const from = start.get(`${c.joint}/${c.path}`);
+    if (!from) return c;
+    const first = sample(c, 0);
+    const rotation = from.length === 4;
+    // The pose's offset from the clip's first frame, faded out with a smoothstep.
+    const offset = rotation ? qmul(from, qinv(first)) : from.map((v, k) => v - first[k]);
+    const shifted = (time, value) => {
+      const fade = Math.max(0, 1 - time / seconds);
+      const w = fade * fade * (3 - 2 * fade);
+      if (!rotation) return value.map((v, k) => v + offset[k] * w);
+      const sign = offset[3] < 0 ? -1 : 1;
+      return qmul(unit(offset.map((v, k) => (k === 3 ? 1 - w + sign * v * w : sign * v * w))), value);
+    };
+    // Keys at the turn rate through the fade, so it is smooth whatever the clip's own keys.
+    const times = [];
+    for (let k = 0, n = Math.max(1, Math.round(seconds * TURN_RATE)); k <= n; k++) times.push((k / n) * Math.min(seconds, length));
+    for (const t of c.times) if (t > seconds) times.push(t);
+    const values = times.flatMap((t) => shifted(t, sample(c, t)));
+    return { ...c, times, values };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
