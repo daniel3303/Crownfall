@@ -194,6 +194,29 @@ public class MapGeneratorTests
         }
     }
 
+    [Theory]
+    [InlineData(2, 1, MapSize.Small, 1)]
+    [InlineData(2, 2, MapSize.Medium, 2)]
+    [InlineData(4, 2, MapSize.Large, 3)]
+    public void Generate_TheCenterIsTheDragonsLairAndTheTrollCampsElsewhere(int teams, int perTeam, MapSize size, int seed)
+    {
+        var game = TestGames.Create(teams: teams, perTeam: perTeam, size: size, seed: seed);
+        var origin = game.Players[0].Start;
+
+        game.Layout.Lair.Should().Be(game.MapCenter);
+        game.Map.IsWalkable(game.MapCenter).Should().BeTrue();
+        game.Dragon.Lair.Center.Should().Be(game.MapCenter);
+        var trolls = game.Layout.Camps.Where(c => c.Members.Contains("troll")).ToList();
+        trolls.Should().ContainSingle("the troll camp moved off the center rather than vanishing");
+        game.Layout.Camps.Should().OnlyContain(c => Vector2.Distance(c.Center, game.MapCenter) >= 12, "no camp crowds the lair");
+        game.Layout.Camps.Should().HaveCount(Math.Max(2, teams * perTeam) + 1);
+        foreach (var camp in game.Layout.Camps.Select(c => c.Center).Append(game.MapCenter))
+        {
+            var path = game.Pathfinder.FindPathToRect(origin.Center + new Vector2(0, 3), TileRect.Single((int)camp.X, (int)camp.Y));
+            path.Should().NotBeEmpty($"the camp at {camp} must be reachable");
+        }
+    }
+
     [Fact]
     public void Generate_SameSeed_ProducesSameTiles()
     {

@@ -55,14 +55,14 @@ internal static class MatchSetup
                 BotDifficulty = config.Difficulty,
                 Stock = stock,
                 Start = layout.Starts.First(s => s.Team == setup.Team && s.Slot == slot),
-                HeroState = new HeroState(race.HeroUnit, content.Abilities.Count, content.HeroStats),
+                HeroState = new HeroState(race.HeroUnit, content.Abilities.Count, content.HeroStats, content.Rules.HeroInventorySlots),
                 MarketPrices = (float[])content.MarketBasePrices.Clone(),
             });
         }
         return players;
     }
 
-    /// <summary>Spawns deposits, each player's town center, villagers and hero, then the creep camps.</summary>
+    /// <summary>Spawns deposits, each player's town center, villagers and hero, then the creep camps and the empty dragon lair.</summary>
     public static void Populate(Game game)
     {
         var content = game.Content;
@@ -90,9 +90,14 @@ internal static class MatchSetup
         var campId = 1;
         foreach (var placement in game.Layout.Camps)
         {
-            var camp = new CreepCamp(campId++, placement.Center, placement.Members.Select(content.Unit).ToList());
+            var camp = new CreepCamp(campId++, placement.Center, placement.Members.Select(content.Unit).ToList())
+            {
+                RespawnSeconds = content.Rules.CampRespawnSeconds,
+                LeashRange = content.Rules.CreepLeashRange,
+            };
             game.Creeps.Camps.Add(camp);
             game.Creeps.Spawn(camp);
         }
+        game.Dragon.OpenLair(campId);
     }
 }

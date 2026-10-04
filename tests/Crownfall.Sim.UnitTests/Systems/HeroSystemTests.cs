@@ -247,11 +247,12 @@ public class HeroSystemTests
         var killer = game.Players[1];
         var rules = game.Content.Rules;
         game.Heroes.AddXp(victim, rules.HeroXpForLevel(5));
-        var before = killer.Stock[ResourceType.Gold];
+        killer.Stock.TrySpend(killer.Stock.Snapshot());
 
         game.Kill(victim.Hero, killer);
 
-        killer.Stock[ResourceType.Gold].Should().Be(before + rules.HeroKillGold + rules.HeroKillGoldPerLevel * 4);
+        // The match's first hero kill also pays first blood.
+        killer.Stock[ResourceType.Gold].Should().Be(rules.HeroKillGold + rules.HeroKillGoldPerLevel * 4 + rules.FirstBloodGold);
         game.Heroes.KillGold(5).Should().BeGreaterThan(game.Heroes.KillGold(1));
         game.Heroes.KillGold(1).Should().Be(rules.HeroKillGold);
     }

@@ -6,8 +6,9 @@ using Crownfall.Sim.Entities;
 namespace Crownfall.Sim.Bots;
 
 /// <summary>
-/// Bot hero: casts abilities when they hit several enemies, supports an attack from behind once badly hurt, and between
-/// attacks rests at home until healed, then explores around home and clears the camps it finds.
+/// Bot hero: casts abilities when they hit several enemies, or the dragon while the army slays it, supports an attack
+/// from behind once badly hurt, and between attacks rests at home until healed, then explores around home and clears
+/// the camps it finds.
 /// </summary>
 public sealed class BotHeroPilot
 {
@@ -48,26 +49,27 @@ public sealed class BotHeroPilot
         _targeting = new BotTargeting(game, memory);
     }
 
-    public void Run(BotView view, BotMode mode)
+    /// <summary>One think for the hero; <paramref name="wantsShop"/> sends an idle hero home to buy its next item.</summary>
+    public void Run(BotView view, BotMode mode, bool wantsShop)
     {
         var hero = view.Hero;
         if (hero is not { IsAlive: true })
         {
             return;
         }
-        UseAbilities(hero);
-        if (hero.Order.Target is Unit { Owner: null } creep && creep.Def.HasTag("boss"))
+        UseAbilities(hero, view, mode);
+        if (mode != BotMode.Slaying && hero.Order.Target is Unit { Owner: null } creep && creep.Def.HasTag("boss"))
         {
             // A boss outlasts any early hero; walking off ends the fight, since creeps leash back to their camp.
             Move(hero, view.Home, attackMove: false);
             return;
         }
-        if (mode == BotMode.Attacking && hero.Hp < hero.MaxHp * _profile.HeroRetreatHealth)
+        if (mode is BotMode.Attacking or BotMode.Slaying && hero.Hp < hero.MaxHp * _profile.HeroRetreatHealth)
         {
             StayBack(hero, view);
             return;
         }
-        if (mode == BotMode.Building && hero.Order.Type == OrderType.Idle && !Rest(hero, view) && !HuntCamp(hero, view))
+        if (mode == BotMode.Building && hero.Order.Type == OrderType.Idle && !Rest(hero, view) && !GoShopping(hero, view, wantsShop) && !HuntCamp(hero, view))
         {
             Explore(hero, view);
         }
@@ -141,17 +143,35 @@ public sealed class BotHeroPilot
             .FirstOrDefault();
     }
 
-    private void UseAbilities(Unit hero)
+    private void UseAbilities(Unit hero, BotView view, BotMode mode)
     {
         var state = _player.HeroState;
+        var dragon = mode == BotMode.Slaying ? view.Creeps.FirstOrDefault(c => c.Camp is { IsLair: true }) : null;
         for (var slot = 0; slot < _game.Content.Abilities.Count; slot++)
         {
             var ability = _game.Content.Abilities[slot];
-            if (state.Level >= ability.UnlockLevel && state.Cooldowns[slot] <= 0 && TryAim(hero, ability, out var target))
+            if (state.Level >= ability.UnlockLevel && state.Cooldowns[slot] <= 0 && (TryAimAtBoss(hero, ability, dragon, out var target) || TryAim(hero, ability, out target)))
             {
                 _game.Commands.Apply(_player, new AbilityCommand { Slot = slot, X = target.X, Y = target.Y });
             }
         }
+    }
+
+    /// <summary>A damaging ability that reaches the boss the army is fighting is spent on it.</summary>
+    private static bool TryAimAtBoss(Unit hero, AbilityDef ability, Unit boss, out Vector2 target)
+    {
+        target = boss?.Position ?? hero.Position;
+        if (boss == null || ability.Damage <= 0)
+        {
+            return false;
+        }
+        var distance = boss.EdgeDistance(hero.Position);
+        return ability.Effect switch
+        {
+            AbilityEffect.Nova => distance <= ability.Radius,
+            AbilityEffect.Strike => distance <= ability.Range,
+            _ => false,
+        };
     }
 
     private bool TryAim(Unit hero, AbilityDef ability, out Vector2 target)
@@ -230,6 +250,17 @@ public sealed class BotHeroPilot
     private bool IsVisibleEnemy(Unit unit)
     {
         return unit.IsAlive && unit.Team != _player.Team && _game.Vision.IsVisible(_player.Team, unit);
+    }
+
+    /// <summary>Walks an idle hero home when an item it can afford waits at the town center.</summary>
+    private bool GoShopping(Unit hero, BotView view, bool wantsShop)
+    {
+        if (!wantsShop || view.TownCenter == null)
+        {
+            return false;
+        }
+        Move(hero, view.TownCenter.Position, attackMove: false);
+        return true;
     }
 
     /// <summary>Clears the nearest known camp while creeps still pay experience worth the trip.</summary>

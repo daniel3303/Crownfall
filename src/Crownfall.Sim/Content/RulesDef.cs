@@ -50,10 +50,35 @@ public sealed class RulesDef
 
     public int HeroKillGoldPerLevel { get; set; }
 
+    /// <summary>Extra gold for the match's first hero slain by an enemy.</summary>
+    public int FirstBloodGold { get; set; }
+
+    /// <summary>A slain hero's kill streak from which its killer earns the shutdown bonus.</summary>
+    public int HeroShutdownStreak { get; set; }
+
+    /// <summary>Shutdown bonus at <see cref="HeroShutdownStreak"/>, plus <see cref="HeroShutdownGoldPerKill"/> per kill above it.</summary>
+    public int HeroShutdownGold { get; set; }
+
+    public int HeroShutdownGoldPerKill { get; set; }
+
+    /// <summary>Announced streak tiers, fewest kills first; the last repeats for every kill beyond it.</summary>
+    public List<KillStreakDef> KillStreaks { get; set; } = [];
+
     /// <summary>Share an ability's cooldown shrinks per hero level above the first, up to <see cref="HeroCooldownReductionMax"/>.</summary>
     public float HeroCooldownReductionPerLevel { get; set; }
 
     public float HeroCooldownReductionMax { get; set; }
+
+    /// <summary>Most a hero's cooldowns can shrink from its level and its items together.</summary>
+    public float HeroCooldownReductionCap { get; set; }
+
+    public int HeroInventorySlots { get; set; }
+
+    /// <summary>Tiles from one of its owner's completed town centers within which a living hero can buy and sell items.</summary>
+    public float ItemShopRange { get; set; }
+
+    /// <summary>Share of an item's price a sale refunds.</summary>
+    public float ItemSellRefund { get; set; }
 
     /// <summary>Seconds without taking damage before a hero starts to regenerate.</summary>
     public float HeroRegenDelaySeconds { get; set; }
@@ -64,6 +89,9 @@ public sealed class RulesDef
     public float CampRespawnSeconds { get; set; }
     public float CreepAggroRange { get; set; }
     public float CreepLeashRange { get; set; }
+
+    /// <summary>The center boss; null for a map without one.</summary>
+    public DragonDef Dragon { get; set; }
     public float UnderAttackNoticeSeconds { get; set; }
 
     /// <summary>Least seconds between two "storage full" notices to one player.</summary>
@@ -77,10 +105,14 @@ public sealed class RulesDef
 
     public MarketDef Market { get; set; } = new();
 
-    /// <summary>What an ability's cooldown is multiplied by for a hero of this level.</summary>
-    public float HeroCooldownFactor(int level)
+    /// <summary>
+    /// What an ability's cooldown is multiplied by for a hero of this level holding items that take
+    /// <paramref name="itemReduction"/> off: the level share is capped on its own, then both together.
+    /// </summary>
+    public float HeroCooldownFactor(int level, float itemReduction = 0)
     {
-        return 1 - MathF.Min(HeroCooldownReductionMax, HeroCooldownReductionPerLevel * Math.Max(0, level - 1));
+        var fromLevel = MathF.Min(HeroCooldownReductionMax, HeroCooldownReductionPerLevel * Math.Max(0, level - 1));
+        return 1 - MathF.Min(MathF.Max(HeroCooldownReductionMax, HeroCooldownReductionCap), fromLevel + itemReduction);
     }
 
     /// <summary>Total experience to reach a level. Hero levels have no cap: steps keep growing past the table.</summary>

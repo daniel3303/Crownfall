@@ -17,7 +17,8 @@ public class BotPassiveTests
         var idle = game.Players[0];
         TestGames.EnableBot(game, bot, BotDifficulty.Passive);
         var home = game.TownCenter(bot).Position;
-        var wolves = game.Entities.Units.Count(u => u.Camp != null);
+        // The dragon lands mid-match on its own timer, so only the ordinary camps are counted.
+        var wolves = game.Entities.Units.Count(u => u.Camp is { IsLair: false });
         var farthest = 0f;
 
         for (var i = 0; i < TestGames.Seconds(10 * 60); i++)
@@ -33,7 +34,7 @@ public class BotPassiveTests
         bot.Stats.BuildingsBuilt.Should().BeGreaterThanOrEqualTo(1, "the passive bot should still build");
         game.Entities.Units.Should().NotContain(u => u.Owner == bot && u.Def.IsMilitary, "a passive bot trains no soldiers");
         farthest.Should().BeLessThan(HomeRadius, "the passive hero should never go out scouting or creeping");
-        game.Entities.Units.Count(u => u.Camp != null).Should().Be(wolves, "the passive bot leaves every creep camp for the player");
+        game.Entities.Units.Count(u => u.Camp is { IsLair: false }).Should().Be(wolves, "the passive bot leaves every creep camp for the player");
         idle.Stats.Losses.Should().Be(0);
         game.IsOver.Should().BeFalse();
     }

@@ -5,6 +5,7 @@ import type { ClientWorld, WorldEntity } from "../game/world";
 import { Activity, NEUTRAL_OWNER, type GameEvent } from "../net/protocol";
 import { pingColor, type Minimap } from "../render/minimap";
 import type { GameRenderer } from "../render/renderer";
+import { ANNOUNCEMENT_SOUNDS } from "../ui/hud/announcements";
 import { store } from "../ui/store";
 
 const RESOURCE_COLORS: Record<string, string> = { food: "#fca5a5", wood: "#d6a77a", stone: "#d4d4d8", gold: "#fde047" };
@@ -82,6 +83,13 @@ export class EventPresenter {
             audio.play("built");
           } else {
             audio.play("trained");
+          }
+          break;
+        case "announce":
+          store.announce({ type: event.type, title: event.title, text: event.text, ours: event.team >= 0 && event.team === this.world.teamOf(this.world.you) });
+          audio.play(ANNOUNCEMENT_SOUNDS[event.type]);
+          if (event.type === "dragonSpawned" || event.type === "dragonSlain") {
+            this.minimap.pings.push({ x: event.x, y: event.y, until: now + 6000, color: pingColor("alert") });
           }
           break;
         case "tiles":

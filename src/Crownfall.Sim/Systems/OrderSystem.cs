@@ -143,7 +143,7 @@ public sealed class OrderSystem
             unit.ClearPath();
             return;
         }
-        if (unit.Camp != null && Vector2.Distance(unit.Position, unit.Camp.Center) > _game.Content.Rules.CreepLeashRange)
+        if (unit.Camp != null && Vector2.Distance(unit.Position, unit.Camp.Center) > unit.Camp.LeashRange)
         {
             _game.Creeps.Leash(unit);
             return;

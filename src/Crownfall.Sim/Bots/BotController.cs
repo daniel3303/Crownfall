@@ -36,7 +36,7 @@ public sealed class BotController
         _guard = new BotVillagerGuard(game, player, _profile, model);
         _military = new BotMilitary(game, player, _profile, model, _memory, _composer);
         _heroPilot = new BotHeroPilot(game, player, _profile, _memory);
-        _heroUpgrades = new BotHeroUpgrades(game, player);
+        _heroUpgrades = new BotHeroUpgrades(game, player, _profile);
         _upgrades = new BotUpgrades(game, player, _profile);
         _trader = new BotTrader(game, player);
         _raids = new BotRaids(game, player, _memory);
@@ -70,6 +70,10 @@ public sealed class BotController
             {
                 _memory.Witness(ability, _game.Tick);
             }
+            else if (gameEvent is AnnouncementEvent announcement)
+            {
+                _memory.Witness(announcement);
+            }
         }
         // Storing can raise a storage notice, so the bonus is paid only once the tick's events are read.
         PayBonus();
@@ -96,13 +100,13 @@ public sealed class BotController
         _economy.Prepare(view);
         _military.Assess(view, _guard.Threat, _economy.HeroReserve);
         _economy.Run(view, _composer.Mix, _guard, _military.Urgent);
-        _heroUpgrades.Run(view);
+        _heroUpgrades.Run(view, _economy.ArmyReserve, _military.Urgent);
         _upgrades.Run(view, _economy.ArmyReserve, _military.Urgent);
         _trader.Run(view, _economy.ArmyReserve, _economy.Available);
         _raids.Run(view, _guard.Threat.IsActive);
         _military.Run(view, _guard.Threat, _economy.ArmyReserve);
         _guard.Protect(view);
-        _heroPilot.Run(view, _military.Mode);
+        _heroPilot.Run(view, _military.Mode, _heroUpgrades.WantsShop);
     }
 
     /// <summary>Stores the whole part of the gather bonus owed; fractions carry over so no share is lost.</summary>
@@ -127,7 +131,7 @@ public sealed class BotController
         _composer.Plan(_economy.Available);
         _economy.Prepare(view);
         _economy.Run(view, _composer.Mix, _guard, urgent: false);
-        _heroUpgrades.Run(view);
+        _heroUpgrades.Run(view, _economy.ArmyReserve, urgent: false);
         _upgrades.Run(view, _economy.ArmyReserve, urgent: false);
     }
 }

@@ -24,6 +24,7 @@ public class BotUpgradeTests
     public void Market_GoldAboutToOverflow_IsSpentOnResources()
     {
         var (game, bot) = BotGame();
+        Outfit(game, bot);
         game.Place("storehouse", bot, BotBuilder.Toward(game.TownCenter(bot).Position, game.MapCenter, -7));
         bot.Stock.Add(ResourceType.Gold, bot.Stock.Room(ResourceType.Gold) - 10);
         var basePrices = (float[])bot.MarketPrices.Clone();
@@ -37,6 +38,7 @@ public class BotUpgradeTests
     public void Market_FoodAboutToOverflow_IsSold()
     {
         var (game, bot) = BotGame();
+        Outfit(game, bot);
         game.Place("storehouse", bot, BotBuilder.Toward(game.TownCenter(bot).Position, game.MapCenter, -7));
         bot.Stock.Add(ResourceType.Food, bot.Stock.Room(ResourceType.Food) - 10);
         var gold = bot.Stock[ResourceType.Gold];
@@ -62,6 +64,15 @@ public class BotUpgradeTests
 
         game.UnitsOf(bot, "villager").Should().Contain(v => BotRaids.IsThief(v) && v.Order.Target == target
             || v.Order.Type == OrderType.ReturnCargo && v.Order.Resume != null && v.Order.Resume.Target == target);
+    }
+
+    /// <summary>Fills the hero's inventory so the bot's spare gold goes to the market rather than to items.</summary>
+    private static void Outfit(Game game, Player bot)
+    {
+        for (var i = 0; i < bot.HeroState.Items.Length; i++)
+        {
+            bot.HeroState.Items[i] = game.Content.Items[i];
+        }
     }
 
     private static (Game Game, Player Bot) BotGame()

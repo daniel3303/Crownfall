@@ -1,8 +1,9 @@
 namespace Crownfall.Server.Protocol;
 
 /// <summary>
-/// Bit flags in each snapshot record. Bits 2-3 hold the carried resource type. A building's state byte is its level
-/// and, while <see cref="Upgrading"/>, its extra byte is the upgrade's percent done instead of construction progress.
+/// Bit flags in each snapshot record. Bits 2-3 hold the carried resource type. <see cref="Buffed"/> marks Rally or the
+/// owner's dragon buff. A building's state byte is its level and, while <see cref="Upgrading"/>, its extra byte is the
+/// upgrade's percent done instead of construction progress.
 /// </summary>
 [Flags]
 public enum SnapshotFlags : byte

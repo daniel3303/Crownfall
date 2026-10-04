@@ -73,6 +73,12 @@ public sealed class LobbyMessageBuilder
             Population = viewer.Population,
             PopulationCap = viewer.PopulationCap,
             Hero = HeroViewFactory.Create(game, viewer),
+            Dragon = game.Dragon.Lair == null ? null : new DragonView
+            {
+                IsUp = game.Dragon.IsUp,
+                LandsInSeconds = game.Dragon.SecondsUntilLanding,
+                BuffSeconds = game.Dragon.BuffSecondsLeft(viewer),
+            },
             Production = game.Entities.Buildings
                 .Where(b => b.Owner == viewer && b.Queue.Count > 0)
                 .Select(b => new ProductionView

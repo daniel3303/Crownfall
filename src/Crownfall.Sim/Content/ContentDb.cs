@@ -16,6 +16,7 @@ public sealed class ContentDb
     private readonly Dictionary<string, BuildingDef> _buildings;
     private readonly Dictionary<string, NodeDef> _nodes;
     private readonly Dictionary<string, RaceDef> _races;
+    private readonly Dictionary<string, ItemDef> _items;
     private int[] _heroReviveBase;
     private int[] _heroRevivePerLevel;
 
@@ -26,6 +27,7 @@ public sealed class ContentDb
         _buildings = content.Buildings.ToDictionary(b => b.Id);
         _nodes = content.Nodes.ToDictionary(n => n.Id);
         _races = content.Races.ToDictionary(r => r.Id);
+        _items = content.Items.ToDictionary(i => i.Id);
         Index();
     }
 
@@ -37,8 +39,12 @@ public sealed class ContentDb
     public IReadOnlyList<RaceDef> Races => Content.Races;
     public IReadOnlyList<AbilityDef> Abilities => Content.Abilities;
     public IReadOnlyList<HeroStatDef> HeroStats => Content.HeroStats;
+    public IReadOnlyList<ItemDef> Items => Content.Items;
     public float TickSeconds => 1f / Rules.TickRate;
     public int[] StartingResources { get; private set; }
+
+    /// <summary>The center boss's unit, or null when the rules have no dragon.</summary>
+    public UnitDef DragonUnit { get; private set; }
 
     /// <summary>Market base mid prices by resource; 0 for resources the market does not trade.</summary>
     public float[] MarketBasePrices { get; private set; }
@@ -107,6 +113,12 @@ public sealed class ContentDb
         return id != null && _buildings.TryGetValue(id, out def);
     }
 
+    public bool TryGetItem(string id, out ItemDef def)
+    {
+        def = null;
+        return id != null && _items.TryGetValue(id, out def);
+    }
+
     public bool HasRace(string id)
     {
         return id != null && _races.ContainsKey(id);
@@ -173,6 +185,7 @@ public sealed class ContentDb
             unit.IsVillager = unit.HasTag("villager");
             unit.IsHero = unit.HasTag("hero");
             unit.IsCreep = unit.HasTag("creep");
+            unit.IsPassive = unit.HasTag("passive");
             unit.IsMilitary = unit.HasTag("military");
         }
         foreach (var building in Content.Buildings)
@@ -206,6 +219,12 @@ public sealed class ContentDb
         MarketBasePrices = Array.ConvertAll(Resources.FromDictionary(Rules.Market.Prices), price => (float)price);
         _heroReviveBase = Resources.FromDictionary(Rules.HeroReviveCost);
         _heroRevivePerLevel = Resources.FromDictionary(Rules.HeroReviveCostPerLevel);
+        foreach (var item in Content.Items)
+        {
+            item.CostAmounts = Resources.FromDictionary(item.Cost);
+        }
+        DragonUnit = Rules.Dragon == null ? null : Unit(Rules.Dragon.Unit);
+        Rules.KillStreaks.Sort((a, b) => a.Kills.CompareTo(b.Kills));
         foreach (var stat in Content.HeroStats)
         {
             stat.Effect = Enum.TryParse<HeroStatEffect>(stat.Id, ignoreCase: true, out var effect)

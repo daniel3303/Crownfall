@@ -18,6 +18,10 @@ public sealed class StateMessage : ServerMessage
     public int Population { get; init; }
     public int PopulationCap { get; init; }
     public HeroView Hero { get; init; }
+
+    /// <summary>Null on a map without a dragon.</summary>
+    public DragonView Dragon { get; init; }
+
     public List<ProductionView> Production { get; init; } = [];
     public List<PlayerView> Players { get; init; } = [];
 }

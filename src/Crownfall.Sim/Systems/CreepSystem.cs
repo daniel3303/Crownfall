@@ -4,7 +4,7 @@ using Crownfall.Sim.Entities;
 
 namespace Crownfall.Sim.Systems;
 
-/// <summary>Neutral camps: guard their spot, chase intruders up to a leash, reset, and respawn.</summary>
+/// <summary>Neutral camps, the dragon's lair among them: guard their spot, chase intruders up to a leash, reset, and respawn.</summary>
 public sealed class CreepSystem
 {
     private const float SpawnRingRadius = 1.2f;
@@ -40,6 +40,10 @@ public sealed class CreepSystem
         {
             creep.IsLeashing = false;
             creep.Hp = creep.MaxHp;
+        }
+        if (creep.Def.IsPassive)
+        {
+            return;
         }
         _nearby.Clear();
         _game.Spatial.Query(creep.Position, _game.Content.Rules.CreepAggroRange, _nearby.Add);
@@ -91,7 +95,11 @@ public sealed class CreepSystem
         }
         if (camp.Alive.Count == 0)
         {
-            camp.RespawnTick = _game.Tick + (int)(_game.Content.Rules.CampRespawnSeconds * _game.Content.Rules.TickRate);
+            camp.RespawnTick = _game.Tick + (int)(camp.RespawnSeconds * _game.Content.Rules.TickRate);
+        }
+        if (camp.IsLair)
+        {
+            _game.Dragon.OnSlain(creep, killer);
         }
     }
 
@@ -105,11 +113,15 @@ public sealed class CreepSystem
             }
             _nearby.Clear();
             _game.Spatial.Query(camp.Center, RespawnBlockRadius, _nearby.Add);
-            if (_nearby.Any(u => u.IsAlive && u.Owner != null))
+            if (!camp.IsLair && _nearby.Any(u => u.IsAlive && u.Owner != null))
             {
                 continue;
             }
             Spawn(camp);
+            if (camp.IsLair)
+            {
+                _game.Dragon.OnLanded(camp);
+            }
         }
         foreach (var camp in Camps)
         {

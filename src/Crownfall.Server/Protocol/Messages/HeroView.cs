@@ -22,5 +22,18 @@ public sealed class HeroView
     public bool CanRevive { get; init; }
 
     public int[] ReviveCost { get; init; } = [];
+
+    /// <summary>Item id per inventory slot, null where a slot is empty.</summary>
+    public string[] Items { get; init; } = [];
+
+    /// <summary>True while the living hero stands near an own completed town center, where items are bought and sold.</summary>
+    public bool CanShop { get; init; }
+
+    /// <summary>Enemy heroes slain since the hero last died.</summary>
+    public int Streak { get; init; }
+
+    /// <summary>What ability cooldowns are multiplied by now, from the hero's level and items.</summary>
+    public float CooldownFactor { get; init; }
+
     public HeroStatsView Stats { get; init; }
 }

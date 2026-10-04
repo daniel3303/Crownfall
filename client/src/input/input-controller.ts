@@ -17,6 +17,7 @@ const FLING_STOPPED = 0.05;
 const FLING_HOLD_MS = 80;
 const TRAIN_KEYS = ["z", "x", "c", "v"];
 const UPGRADE_KEY = "u";
+const SHOP_KEY = "p";
 const MAC = /Mac/.test(navigator.platform);
 
 /** Firefox on a Mac reports a Ctrl-click as the right button; Chrome and Safari report the left one. */
@@ -230,8 +231,13 @@ export class InputController {
     const view = this.view;
     const selection = view.currentSelection();
     if (key === "escape") {
-      if (view.mode.kind !== "normal") view.setMode({ kind: "normal" });
+      if (store.get().shop) store.set({ shop: false });
+      else if (view.mode.kind !== "normal") view.setMode({ kind: "normal" });
       else view.selection.clear();
+      return true;
+    }
+    if (key === SHOP_KEY) {
+      store.set({ shop: !store.get().shop });
       return true;
     }
     if (key === " ") {

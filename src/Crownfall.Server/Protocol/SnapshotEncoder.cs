@@ -92,7 +92,7 @@ public static class SnapshotEncoder
             flags |= SnapshotFlags.Carrying | (SnapshotFlags)((int)unit.CarryType << 2);
             extra = (byte)Math.Clamp((int)MathF.Round(unit.CarryAmount), 0, 255);
         }
-        if (unit.IsBuffed(tick))
+        if (unit.IsBuffed(tick) || unit.HasTeamBuff)
         {
             flags |= SnapshotFlags.Buffed;
         }

@@ -12,6 +12,7 @@ public sealed class CombatSystem
     private const float CreepTargetSightFactor = 2f;
     private readonly Game _game;
     private readonly List<Unit> _candidates = [];
+    private readonly List<Unit> _splashed = [];
 
     public CombatSystem(Game game)
     {
@@ -48,7 +49,8 @@ public sealed class CombatSystem
         _game.Spatial.Query(unit.Position, radius + 1, _candidates.Add);
         foreach (var candidate in _candidates)
         {
-            if (candidate == unit || !CanAttack(unit, candidate))
+            // A passive boss such as the dragon is fought only on an explicit order, never by units passing its lair.
+            if (candidate == unit || candidate.Def.IsPassive || !CanAttack(unit, candidate))
             {
                 continue;
             }
@@ -88,19 +90,31 @@ public sealed class CombatSystem
             Launch(attacker, attacker.Owner, target, damage);
             return;
         }
+        var point = target.Position;
         StealLife(attacker, Damage(target, damage, attacker, attacker.Owner));
+        if (attacker.Def.Splash > 0)
+        {
+            Splash(attacker, target, point);
+        }
     }
 
+    /// <summary>A live target's damage: a unit's own armor counts, with whatever a hero's items add to it.</summary>
     public static float ComputeDamage(float attack, DamageType type, IReadOnlyList<BonusDef> bonuses, Entity target)
     {
         return target is Unit unit
-            ? ComputeDamage(attack, type, bonuses, unit.Def)
+            ? ComputeDamage(attack, type, bonuses, unit.Def, unit.ArmorAgainst(type))
             : MathF.Max(1, attack - target.Armor.Against(type));
     }
 
+    /// <summary>Damage against a unit type at its base armor, for estimates made without a live unit.</summary>
     public static float ComputeDamage(float attack, DamageType type, IReadOnlyList<BonusDef> bonuses, UnitDef target)
     {
-        var damage = MathF.Max(1, attack - target.Armor.Against(type));
+        return ComputeDamage(attack, type, bonuses, target, target.Armor.Against(type));
+    }
+
+    private static float ComputeDamage(float attack, DamageType type, IReadOnlyList<BonusDef> bonuses, UnitDef target, float armor)
+    {
+        var damage = MathF.Max(1, attack - armor);
         foreach (var bonus in bonuses)
         {
             if (target.HasTag(bonus.Vs))
@@ -138,6 +152,22 @@ public sealed class CombatSystem
             _game.Kill(target, sourceOwner);
         }
         return dealt;
+    }
+
+    /// <summary>A splashing attacker's blow also lands on every other enemy unit around the spot it struck.</summary>
+    private void Splash(Unit attacker, Entity target, Vector2 point)
+    {
+        // No impact event: the client draws those as meteor strikes, and the attacker's own blow already shows.
+        var radius = attacker.Def.Splash;
+        _splashed.Clear();
+        _game.Spatial.Query(point, radius + 1, _splashed.Add);
+        foreach (var unit in _splashed)
+        {
+            if (unit != target && unit.IsAlive && AreEnemies(attacker, unit) && unit.EdgeDistance(point) <= radius)
+            {
+                Damage(unit, ComputeDamage(attacker.AttackDamage, attacker.Def.DamageType, attacker.Def.Bonus, unit), attacker, attacker.Owner);
+            }
+        }
     }
 
     /// <summary>A hero with life-steal ranks heals a share of what its basic attack dealt.</summary>
@@ -213,7 +243,7 @@ public sealed class CombatSystem
         _game.Spatial.Query(building.Position, range + building.Radius + 1, _candidates.Add);
         foreach (var unit in _candidates)
         {
-            if (!unit.IsAlive || !AreEnemies(building, unit) || !_game.Vision.IsVisible(building.Team, unit))
+            if (!unit.IsAlive || unit.Def.IsPassive || !AreEnemies(building, unit) || !_game.Vision.IsVisible(building.Team, unit))
             {
                 continue;
             }

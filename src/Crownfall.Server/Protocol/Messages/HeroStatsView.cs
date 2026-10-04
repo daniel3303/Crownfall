@@ -1,6 +1,6 @@
 namespace Crownfall.Server.Protocol.Messages;
 
-/// <summary>A hero's effective numbers right now, with level growth, stat ranks and any Rally buff applied.</summary>
+/// <summary>A hero's effective numbers right now, with level growth, stat ranks, items, Rally and the dragon buff applied.</summary>
 public sealed class HeroStatsView
 {
     public float Hp { get; init; }
@@ -20,9 +20,9 @@ public sealed class HeroStatsView
 
     public int Sight { get; init; }
 
-    /// <summary>Hp regained per second while resting.</summary>
+    /// <summary>Hp regained per second right now: items always, plus the resting share once unhurt for a while.</summary>
     public float Regen { get; init; }
 
-    /// <summary>True while the hero has gone unhurt long enough to be regenerating.</summary>
+    /// <summary>True while the hero is below full health and some regeneration applies.</summary>
     public bool Regenerating { get; init; }
 }

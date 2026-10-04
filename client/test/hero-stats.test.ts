@@ -19,6 +19,10 @@ function hero(ranks: Record<string, number> = {}): HeroState {
     reviveSeconds: 0,
     canRevive: false,
     reviveCost: [175, 0, 0, 140],
+    items: [null, null, null, null, null, null],
+    canShop: false,
+    streak: 0,
+    cooldownFactor: 0.94,
     stats: { hp: 300, maxHp: 410, attack: 25.5, cooldown: 1.0, range: 0.6, speed: 2.6, armorMelee: 3, armorPierce: 3, lifeSteal: 0.16, sight: 16, regen: 10.25, regenerating: true },
   };
 }

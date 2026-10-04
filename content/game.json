@@ -26,14 +26,29 @@
     "heroReviveCostGrowth": 1.06,
     "heroKillGold": 100,
     "heroKillGoldPerLevel": 50,
+    "firstBloodGold": 150,
+    "heroShutdownStreak": 3,
+    "heroShutdownGold": 100,
+    "heroShutdownGoldPerKill": 50,
+    "killStreaks": [
+      { "kills": 3, "title": "Killing Spree" },
+      { "kills": 5, "title": "Rampage" },
+      { "kills": 7, "title": "Unstoppable" },
+      { "kills": 9, "title": "Godlike" }
+    ],
     "heroCooldownReductionPerLevel": 0.04,
     "heroCooldownReductionMax": 0.4,
+    "heroCooldownReductionCap": 0.55,
+    "heroInventorySlots": 6,
+    "itemShopRange": 8,
+    "itemSellRefund": 0.5,
     "heroRegenDelaySeconds": 5,
     "heroRegenPerSecond": 0.025,
     "buildingXp": 40,
     "campRespawnSeconds": 120,
     "creepAggroRange": 3.5,
     "creepLeashRange": 7,
+    "dragon": { "unit": "dragon", "spawnSeconds": 360, "respawnSeconds": 300, "gold": 200, "buffSeconds": 90, "buffAttack": 0.2, "leashRange": 12 },
     "underAttackNoticeSeconds": 12,
     "storageFullNoticeSeconds": 20,
     "stealRate": 0.6,
@@ -195,6 +210,22 @@
       "xp": 160,
       "tags": ["creep", "boss"],
       "bounty": { "gold": 120 }
+    },
+    {
+      "id": "dragon",
+      "name": "Elder Dragon",
+      "hp": 2500,
+      "attack": 50,
+      "damageType": "melee",
+      "range": 1.0,
+      "cooldown": 3.0,
+      "splash": 0.3,
+      "armor": { "melee": 1, "pierce": 1 },
+      "speed": 2.2,
+      "sight": 6,
+      "radius": 1.3,
+      "xp": 400,
+      "tags": ["creep", "boss", "passive"]
     }
   ],
   "buildings": [
@@ -214,7 +245,7 @@
       "storage": 600,
       "levels": [
         {
-          "cost": { "wood": 300, "stone": 150, "gold": 150 },
+          "cost": { "wood": 300, "stone": 150, "gold": 100 },
           "time": 50,
           "hp": 3000,
           "armor": { "melee": 4, "pierce": 9 },
@@ -312,7 +343,7 @@
           "troopAttack": 1.1
         },
         {
-          "cost": { "wood": 250, "stone": 100, "gold": 150 },
+          "cost": { "wood": 250, "stone": 100, "gold": 100 },
           "time": 50,
           "townCenterLevel": 2,
           "hp": 1800,
@@ -504,6 +535,18 @@
       "buildingMultiplier": 0.5,
       "description": "Call down a meteor on a target area after a short delay."
     }
+  ],
+  "items": [
+    { "id": "ironSword", "name": "Iron Sword", "cost": { "gold": 125 }, "attack": 5, "description": "A plain, sharp blade." },
+    { "id": "leatherArmor", "name": "Leather Armor", "cost": { "gold": 100 }, "armor": { "melee": 1, "pierce": 2 }, "description": "Boiled leather that turns arrows." },
+    { "id": "vitalityCharm", "name": "Vitality Charm", "cost": { "gold": 150 }, "hp": 120, "description": "A warm stone on a cord." },
+    { "id": "swiftBoots", "name": "Swift Boots", "cost": { "gold": 150 }, "moveSpeed": 0.12, "description": "Light boots for long marches." },
+    { "id": "regenRing", "name": "Ring of Renewal", "cost": { "gold": 220 }, "regen": 2.5, "description": "Heals its wearer even in the thick of a fight." },
+    { "id": "hasteGloves", "name": "Gloves of Haste", "cost": { "gold": 300 }, "attackSpeed": 0.2, "description": "Quick hands, quicker blows." },
+    { "id": "vampireFang", "name": "Vampire Fang", "cost": { "gold": 350 }, "attack": 4, "lifeSteal": 0.12, "description": "Drinks a share of every wound it deals." },
+    { "id": "sageTalisman", "name": "Sage's Talisman", "cost": { "gold": 400 }, "cooldownReduction": 0.2, "description": "Abilities recharge sooner." },
+    { "id": "plateArmor", "name": "Plate Armor", "cost": { "gold": 650, "stone": 50 }, "hp": 200, "armor": { "melee": 3, "pierce": 3 }, "description": "Heavy steel for the front line." },
+    { "id": "warlordBlade", "name": "Warlord's Blade", "cost": { "gold": 800 }, "attack": 16, "attackSpeed": 0.15, "description": "A legendary blade for a seasoned hero." }
   ],
   "heroStats": [
     { "id": "attackDamage", "name": "Attack Damage", "perRank": 3, "description": "+3 attack damage per rank." },

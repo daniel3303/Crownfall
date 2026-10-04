@@ -50,6 +50,18 @@ public sealed class BotProfile
     /// <summary>Soldiers step out from under enemy meteor strikes seen being cast.</summary>
     public bool Dodge { get; init; }
 
+    /// <summary>Melee soldiers a ready enemy area ability would kill stay out of its reach, but for a few baits.</summary>
+    public bool RespectAreaAbilities { get; init; }
+
+    /// <summary>An attacking wave strung out on the march gathers on its centroid before it meets the enemy.</summary>
+    public bool KeepWaveTogether { get; init; }
+
+    /// <summary>Most soldiers, as a share of the group, the bot will expect to lose slaying the dragon; 0 never tries.</summary>
+    public float DragonLossShare { get; init; }
+
+    /// <summary>Dearest item, in total resources, the bot buys for its hero.</summary>
+    public int ItemBudget { get; init; }
+
     /// <summary>Seconds after a retreat before the army may attack again without having grown.</summary>
     public int RegroupSeconds { get; init; }
     public bool ScoutEarly { get; init; }
@@ -102,6 +114,10 @@ public sealed class BotProfile
                 Micro = false,
                 Kite = false,
                 Dodge = false,
+                RespectAreaAbilities = false,
+                KeepWaveTogether = false,
+                DragonLossShare = 0.2f,
+                ItemBudget = 150,
                 RegroupSeconds = 60,
                 ScoutEarly = false,
                 RescoutSeconds = 0,
@@ -137,6 +153,10 @@ public sealed class BotProfile
                 Micro = true,
                 Kite = true,
                 Dodge = true,
+                RespectAreaAbilities = true,
+                KeepWaveTogether = true,
+                DragonLossShare = 0.3f,
+                ItemBudget = 800,
                 RegroupSeconds = 30,
                 ScoutEarly = true,
                 RescoutSeconds = 120,
@@ -148,7 +168,7 @@ public sealed class BotProfile
                 StrikeTargets = 3,
             },
             // Hard's judgment with faster reactions, earlier attacks and a bonus-fed economy. In bot duels it does not beat
-            // Hard yet (about 45% over 40 seeds): early hero levels decide those games, not tempo or income.
+            // Hard yet (19 of 40 seeds); income, tempo and hero experience bonuses all measured as noise.
             BotDifficulty.Brutal => new BotProfile
             {
                 ThinkTicks = 3,
@@ -183,6 +203,10 @@ public sealed class BotProfile
                 HeroRetreatHealth = 0.35f,
                 NovaTargets = 2,
                 StrikeTargets = 3,
+                RespectAreaAbilities = true,
+                KeepWaveTogether = true,
+                DragonLossShare = 0.3f,
+                ItemBudget = 800,
                 GatherBonus = 0.3f,
             },
             BotDifficulty.Passive => new BotProfile
@@ -246,6 +270,10 @@ public sealed class BotProfile
                 Micro = true,
                 Kite = false,
                 Dodge = true,
+                RespectAreaAbilities = false,
+                KeepWaveTogether = false,
+                DragonLossShare = 0.25f,
+                ItemBudget = 400,
                 RegroupSeconds = 45,
                 ScoutEarly = true,
                 RescoutSeconds = 180,

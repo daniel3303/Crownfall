@@ -2,7 +2,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { audio } from "../../audio";
 import { VolumeSliders } from "../../audio/VolumeSliders";
-import { RESOURCE_NAMES } from "../../content/content";
+import { content, RESOURCE_NAMES, unitDef } from "../../content/content";
 import { session } from "../../session";
 import { Icon } from "../icons";
 import { playerColor } from "../palette";
@@ -41,8 +41,11 @@ export function TopBar() {
         </span>
         {sharing === "shared" && <span className="tag">team pool</span>}
       </div>
-      <div className="clock" {...tipProps(() => <TextTip title="Match time" text="There is no time limit: the match ends when one team, allies together, is all that remains. Destroy every enemy town center and villager to win." />)}>
-        {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
+      <div className="clock-group">
+        <div className="clock" {...tipProps(() => <TextTip title="Match time" text="There is no time limit: the match ends when one team, allies together, is all that remains. Destroy every enemy town center and villager to win." />)}>
+          {clock(elapsed)}
+        </div>
+        <DragonClock />
       </div>
       <div className="topbar-actions">
         {idle > 0 && (
@@ -90,6 +93,33 @@ export function TopBar() {
         </div>
       )}
     </div>
+  );
+}
+
+function clock(seconds: number): string {
+  const whole = Math.max(0, Math.ceil(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/** When the center dragon lands, whether it is up, and your team's attack buff from slaying it. */
+function DragonClock() {
+  const dragon = useHud((s) => s.stats?.dragon);
+  const rules = content.rules.dragon;
+  if (!dragon || !rules) return null;
+  const buff = Math.round(rules.buffAttack * 100);
+  const name = unitDef(rules.unit).name;
+  const text = `The ${name} lands at the center of the map after ${clock(rules.spawnSeconds)} and returns ${Math.round(rules.respawnSeconds / 60)} minutes after it falls. It only fights those who attack it. Slaying it pays ${rules.gold} gold to every stockpile on your team and gives your whole army +${buff}% attack for ${rules.buffSeconds} s.`;
+  return (
+    <>
+      <span className={`dragon-clock ${dragon.isUp ? "up" : ""}`} {...tipProps(() => <TextTip title={name} text={text} />)}>
+        <Icon id="dragon" /> {dragon.isUp ? "Dragon awake" : clock(dragon.landsInSeconds)}
+      </span>
+      {dragon.buffSeconds > 0 && (
+        <span className="dragon-buff" {...tipProps(() => <TextTip title="Dragon's might" text={`Your team slew the dragon: +${buff}% attack for every unit.`} />)}>
+          <Icon id="dragonBuff" /> +{buff}% {clock(dragon.buffSeconds)}
+        </span>
+      )}
+    </>
   );
 }
 

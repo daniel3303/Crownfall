@@ -14,6 +14,17 @@ Map tiles, in the start message and in tile events, are bytes: 0 grass, 1 sand, 
 
 Version 2 added a 19th record byte, `attackSpeed`: how much faster than its base cooldown a unit attacks right now (attack-speed ranks plus Rally), as the multiplier × 64. 64 is the base rate, and buildings and nodes always send 64. The client times attack animations and swing sounds by it.
 
+Flag 16 (`Buffed`) marks a unit under Rally or a unit whose owner holds the dragon's attack buff; the record format is unchanged.
+
+## Shop, streaks and the dragon
+
+The gold loop added only JSON, never record bytes:
+
+- Commands `{ "type": "buyItem", "item": "<item id>" }` and `{ "type": "sellItem", "slot": <0-based slot> }`. Both need the living hero within `rules.itemShopRange` tiles of an own completed town center; a refusal comes back as a warning notice.
+- The state message's `hero` adds `items` (an item id per inventory slot, `null` where empty), `canShop`, `streak` (enemy heroes slain since its last death) and `cooldownFactor` (what ability cooldowns are multiplied by, from level and items under `rules.heroCooldownReductionCap`).
+- The state message adds `dragon: { isUp, landsInSeconds, buffSeconds }` when the rules have a dragon; `buffSeconds` is the viewer's own buff.
+- Event `{ "k": "announce", "type", "title", "text", "player", "team", "x", "y" }` reaches every player. `type` is `firstBlood`, `killStreak`, `shutdown`, `dragonSpawned` or `dragonSlain`; `player` and `team` are -1 when no one owns it.
+
 ## The `end` message
 
 The server sends one `end` text frame when the match is decided. Besides each player's totals, it carries what the host recorded while the match ran (`MatchStatsRecorder`, outside the simulation):

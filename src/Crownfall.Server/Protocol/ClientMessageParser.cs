@@ -26,6 +26,8 @@ public static class ClientMessageParser
         ["tribute"] = typeof(TributeCommand),
         ["heroStat"] = typeof(HeroStatCommand),
         ["reviveHero"] = typeof(ReviveHeroCommand),
+        ["buyItem"] = typeof(BuyItemCommand),
+        ["sellItem"] = typeof(SellItemCommand),
         ["upgrade"] = typeof(UpgradeCommand),
         ["cancelUpgrade"] = typeof(CancelUpgradeCommand),
         ["trade"] = typeof(TradeCommand),

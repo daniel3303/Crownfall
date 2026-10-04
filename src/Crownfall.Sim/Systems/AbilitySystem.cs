@@ -69,7 +69,7 @@ public sealed class AbilitySystem
             _game.Notify(player, "No room to charge there.", NoticeTone.Warning, null);
             return;
         }
-        state.Cooldowns[slot] = ability.Cooldown * _game.Content.Rules.HeroCooldownFactor(state.Level);
+        state.Cooldowns[slot] = ability.Cooldown * _game.Content.Rules.HeroCooldownFactor(state.Level, state.ItemCooldownReduction);
         var delayTicks = DelayTicks(hero, ability, point);
         _game.Events.Add(new AbilityEvent
         {

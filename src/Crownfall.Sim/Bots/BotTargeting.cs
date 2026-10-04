@@ -13,7 +13,7 @@ public sealed class BotTargeting
 
     private const int VillagerTrailSeconds = 60;
 
-    // Paths passing this close to a remembered boss camp bend around it by the detour distance.
+    // Paths passing this close to a remembered boss camp bend around it by the detour distance; a passive boss is passed by.
     public const float BossClearance = 9f;
     private const float BossDetour = 12f;
 
@@ -56,7 +56,7 @@ public sealed class BotTargeting
         var side = Vector2.Normalize(new Vector2(-heading.Y, heading.X));
         foreach (var camp in _memory.Camps)
         {
-            if (!camp.HasBoss || !_memory.IsCampLikelyAlive(camp, _game.Tick) || DistanceToSegment(camp.Center, from, to) > BossClearance)
+            if (!camp.HasBoss || camp.IsPassive || !_memory.IsCampLikelyAlive(camp, _game.Tick) || DistanceToSegment(camp.Center, from, to) > BossClearance)
             {
                 continue;
             }

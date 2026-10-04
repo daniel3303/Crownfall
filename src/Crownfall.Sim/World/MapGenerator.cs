@@ -6,7 +6,7 @@ namespace Crownfall.Sim.World;
 
 /// <summary>
 /// Builds a seeded map: noise forests and lakes, team starts on a ring facing the center, carved paths,
-/// mirrored starting resources per seat, scattered extra deposits and neutral camps.
+/// mirrored starting resources per seat, scattered extra deposits, neutral camps and the dragon's lair at the center.
 /// </summary>
 public sealed class MapGenerator
 {
@@ -71,7 +71,7 @@ public sealed class MapGenerator
         }
         PlaceCamps();
         PlaceExtraResources();
-        return new MapLayout { Map = _map, Starts = _starts, Nodes = _grid.Nodes, Camps = _camps };
+        return new MapLayout { Map = _map, Starts = _starts, Nodes = _grid.Nodes, Camps = _camps, Lair = MapCenter };
     }
 
     private void PaintTerrain()
@@ -166,30 +166,36 @@ public sealed class MapGenerator
         }
     }
 
+    /// <summary>The center is the dragon's lair; the troll's camp is the first one placed elsewhere, then the wolves'.</summary>
     private void PlaceCamps()
     {
         TerrainSculptor.ClearDisc(_map, MapCenter, CampClearRadius);
-        AddCamp(MapCenter, ["troll", "wolf", "wolf"]);
-        var wanted = Math.Max(2, _config.PlayerCount);
-        for (var attempt = 0; attempt < PlacementAttempts && _camps.Count < wanted + 1; attempt++)
+        ReserveCampArea(MapCenter);
+        var wanted = Math.Max(2, _config.PlayerCount) + 1;
+        for (var attempt = 0; attempt < PlacementAttempts && _camps.Count < wanted; attempt++)
         {
             var point = RandomReachablePoint();
             if (DistanceToNearestStart(point) < MinCampDistanceFromStart)
             {
                 continue;
             }
-            if (_camps.Any(c => Vector2.Distance(c.Center, point) < MinCampSpacing))
+            if (Vector2.Distance(MapCenter, point) < MinCampSpacing || _camps.Any(c => Vector2.Distance(c.Center, point) < MinCampSpacing))
             {
                 continue;
             }
             TerrainSculptor.ClearDisc(_map, point, CampClearRadius);
-            AddCamp(point, ["wolf", "wolf", "wolf"]);
+            AddCamp(point, _camps.Count == 0 ? ["troll", "wolf", "wolf"] : ["wolf", "wolf", "wolf"]);
         }
     }
 
     private void AddCamp(Vector2 center, IReadOnlyList<string> members)
     {
         _camps.Add(new CampPlacement(center, members));
+        ReserveCampArea(center);
+    }
+
+    private void ReserveCampArea(Vector2 center)
+    {
         var reach = CampClearRadius + 1;
         _grid.Reserve(new TileRect((int)center.X - reach, (int)center.Y - reach, reach * 2 + 1, reach * 2 + 1));
     }

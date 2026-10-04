@@ -1,5 +1,6 @@
 import { useSyncExternalStore, type ReactNode } from "react";
 import type { EndMessage, LobbyMessage, MatchConfig, PlayerView, StateMessage } from "../net/protocol";
+import { queueAnnouncement, type Announcement } from "./hud/announcements";
 
 export type InputMode = { kind: "normal" } | { kind: "place"; building: string } | { kind: "ability"; slot: number } | { kind: "attackMove" };
 
@@ -68,6 +69,10 @@ export interface HudState {
   loadError: string | null;
   tip: TipState | null;
   hover: HoverInfo | null;
+  /** The hero item shop is open. */
+  shop: boolean;
+  /** Match-wide banners, the showing one first. */
+  announcements: Announcement[];
 }
 
 /** A HUD tooltip and the element it explains. */
@@ -103,6 +108,8 @@ const initial: HudState = {
   loadError: null,
   tip: null,
   hover: null,
+  shop: false,
+  announcements: [],
 };
 
 /** A tiny external store so the 60 fps game loop can feed React without re-rendering every frame. */
@@ -128,6 +135,10 @@ class HudStore {
     const kept = this.state.notices.filter((n) => now - n.at < 5000 && n.text !== text);
     const notices = [...kept, { id: ++this.noticeSerial, text, tone, x, y, at: now }].slice(-5);
     this.set({ notices });
+  }
+
+  announce(next: Omit<Announcement, "id" | "start">): void {
+    this.set({ announcements: queueAnnouncement(this.state.announcements, { ...next, id: ++this.noticeSerial }, performance.now()) });
   }
 
   subscribe = (listener: () => void): (() => void) => {

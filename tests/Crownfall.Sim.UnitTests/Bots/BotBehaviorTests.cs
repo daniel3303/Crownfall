@@ -1,7 +1,9 @@
 using System.Numerics;
 using Crownfall.Sim.Bots;
+using Crownfall.Sim.Content;
 using Crownfall.Sim.Core;
 using Crownfall.Sim.Entities;
+using Crownfall.Sim.Events;
 using Crownfall.Sim.UnitTests.Support;
 
 namespace Crownfall.Sim.UnitTests.Bots;
@@ -203,6 +205,120 @@ public class BotBehaviorTests
             _output.WriteLine($"{player.Name}: banks {string.Join(" ", banks)}");
             banks.Count(bank => bank < 1000).Should().BeGreaterThanOrEqualTo((int)(banks.Count * 0.8f), $"{player.Name} should spend what it gathers");
         }
+    }
+
+    [Fact]
+    public void Dragon_ArmyStrongEnoughForItButNotForTheEnemy_SlaysTheDragonAndGoesHome()
+    {
+        var game = TestGames.Create(seed: 3);
+        var bot = game.Players[0];
+        var enemy = game.Players[1];
+        TestGames.EnableBot(game, bot, BotDifficulty.Hard);
+        var home = game.TownCenter(bot).Position;
+        var rally = BotBuilder.Toward(home, game.MapCenter, 6);
+        for (var i = 0; i < 30; i++)
+        {
+            game.Spawn(i < 20 ? "spearman" : "archer", bot, game.Walkable(rally + new Vector2(i % 6 - 3, i / 6 - 2)));
+        }
+        bot.HeroState.Level = 6;
+        bot.Hero.Position = game.Walkable(rally);
+        SightAnOverwhelmingEnemyArmy(game, bot, enemy);
+        game.Dragon.Lair.RespawnTick = game.Tick + 1;
+        var dragonKiller = -1;
+        var struck = false;
+        var soldiers = Army(game, bot).Count;
+
+        RunUntil(game, TestGames.Seconds(150), () =>
+        {
+            struck |= Army(game, bot).Any(u => u.Order.Target is Unit { Camp.IsLair: true });
+            dragonKiller = game.Events.OfType<AnnouncementEvent>().FirstOrDefault(a => a.Type == AnnouncementType.DragonSlain)?.Player ?? dragonKiller;
+            return dragonKiller >= 0;
+        });
+        var survivors = Army(game, bot).Count;
+        // A dragon back soon after tests the wait between attempts; the real one returns minutes later.
+        TestGames.Run(game, TestGames.Seconds(5));
+        game.Dragon.Lair.RespawnTick = game.Tick + 1;
+        var again = RunUntil(game, TestGames.Seconds(60), () => Army(game, bot).Any(u => u.Order.Target is Unit { IsAlive: true, Camp.IsLair: true }));
+
+        _output.WriteLine($"slain by {dragonKiller}, {survivors} of {soldiers} soldiers left");
+        struck.Should().BeTrue("the army should set on the dragon when it expects to lose few");
+        dragonKiller.Should().Be(bot.Index);
+        survivors.Should().BeGreaterThanOrEqualTo(soldiers - 9, "Hard only fights the dragon when the fight is cheap");
+        again.Should().BeFalse("the army waits a while before another dragon fight");
+        Army(game, bot).Count(u => Vector2.Distance(u.Position, rally) <= 12).Should().BeGreaterThanOrEqualTo((int)(0.7f * survivors), "the army comes home after the kill");
+    }
+
+    /// <summary>
+    /// The bot glimpses an enemy army far larger than its own, which then marches home out of sight; remembering it keeps
+    /// the bot from attacking, so the dragon is the only fight worth its army.
+    /// </summary>
+    private static void SightAnOverwhelmingEnemyArmy(Game game, Player bot, Player enemy)
+    {
+        var spot = game.Walkable(BotBuilder.Toward(game.TownCenter(bot).Position, game.MapCenter, 24));
+        var scout = game.Spawn("rider", bot, spot);
+        var blob = new List<Unit>();
+        for (var i = 0; i < 60; i++)
+        {
+            blob.Add(game.Spawn("rider", enemy, game.Walkable(spot + new Vector2(4 + i % 6, i / 6 - 5))));
+        }
+        foreach (var unit in blob.Append(scout))
+        {
+            unit.StunUntilTick = game.Tick + TestGames.Seconds(2);
+        }
+        TestGames.Run(game, TestGames.Seconds(1));
+        foreach (var unit in blob)
+        {
+            unit.Position = game.Walkable(enemy.Start.Center + new Vector2(0, 6));
+            unit.StunUntilTick = game.Tick + TestGames.Seconds(600);
+        }
+        scout.Position = game.Walkable(BotBuilder.Toward(game.TownCenter(bot).Position, game.MapCenter, 4));
+    }
+
+    [Fact]
+    public void Area_EnemyHeroWithALethalCleaveReady_HardSendsOnlyAFewSoldiersIntoItsReach()
+    {
+        var hard = CrowdAroundACleavingHero(BotDifficulty.Hard);
+        var normal = CrowdAroundACleavingHero(BotDifficulty.Normal);
+
+        _output.WriteLine($"soldiers inside the cleave: Hard {hard:F1}, Normal {normal:F1}");
+        hard.Should().BeLessThanOrEqualTo(4, "Hard keeps all but a few baits out of a ready cleave that kills them outright");
+        normal.Should().BeGreaterThan(hard + 2, "a profile that ignores area abilities crowds the hero");
+    }
+
+    /// <summary>
+    /// Average count of the bot's spearmen inside a level 6 enemy hero's cleave over twelve seconds of defending against it;
+    /// the hero is tough enough to outlast the fight and never casts, so its cleave stays ready.
+    /// </summary>
+    private static float CrowdAroundACleavingHero(BotDifficulty difficulty)
+    {
+        var game = TestGames.Create(seed: 3);
+        var bot = game.Players[0];
+        var enemy = game.Players[1];
+        TestGames.EnableBot(game, bot, difficulty);
+        var home = game.TownCenter(bot).Position;
+        for (var i = 0; i < 12; i++)
+        {
+            game.Spawn("spearman", bot, game.Walkable(BotBuilder.Toward(home, game.MapCenter, 6) + new Vector2(i % 4, i / 4)));
+        }
+        var hero = enemy.Hero;
+        enemy.HeroState.Level = 6;
+        hero.MaxHp = 50000;
+        hero.Hp = hero.MaxHp;
+        hero.Position = game.Walkable(BotBuilder.Toward(home, game.MapCenter, 12));
+        var cleave = game.Content.Abilities.First(a => a.Effect == AbilityEffect.Nova);
+        var samples = 0;
+        var inside = 0;
+        for (var tick = 0; tick < TestGames.Seconds(16); tick++)
+        {
+            game.Step([]);
+            if (tick < TestGames.Seconds(4))
+            {
+                continue;
+            }
+            samples++;
+            inside += Army(game, bot).Count(u => Vector2.Distance(u.Position, hero.Position) <= cleave.Radius + u.Radius);
+        }
+        return inside / (float)samples;
     }
 
     /// <summary>

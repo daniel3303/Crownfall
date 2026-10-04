@@ -70,6 +70,12 @@ public sealed class CommandProcessor
             case ReviveHeroCommand revive:
                 _game.Heroes.Revive(player, revive.Building);
                 break;
+            case BuyItemCommand buy:
+                _game.Shop.Buy(player, buy.Item);
+                break;
+            case SellItemCommand sell:
+                _game.Shop.Sell(player, sell.Slot);
+                break;
             case TributeCommand tribute:
                 ApplyTribute(player, tribute);
                 break;

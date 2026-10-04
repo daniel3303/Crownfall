@@ -1,8 +1,9 @@
-import { buildingStats, content, costList, heroCooldownFactor, maxLevel, RESOURCE_NAMES, troopRank, unitDef, type AbilityDef, type BuildingDef, type Cost, type HeroStatDef, type ResourceName, type UnitDef } from "../../content/content";
+import { buildingStats, content, costList, itemRefund, maxLevel, RESOURCE_NAMES, troopRank, unitDef, type AbilityDef, type BuildingDef, type Cost, type HeroStatDef, type ItemDef, type ResourceName, type UnitDef } from "../../content/content";
 import { fitsIntoWall, isLineBuilding } from "../../game/placement";
 import type { HeroState } from "../../net/protocol";
 import { storageLevel, storageSources, upgradeChanges, upgradeRequirement } from "../hud/building-upgrades";
 import { statEffect } from "../hud/hero-stats";
+import { itemStatLines, SHOP_BLOCK_TEXT, type ShopBlock } from "../hud/items";
 import { Icon } from "../icons";
 import { useHud } from "../store";
 import { counters, RESOURCE_SOURCE, ROLE, spentOn } from "./help";
@@ -108,14 +109,13 @@ const TARGET_HINT: Partial<Record<AbilityDef["effect"], string>> = {
   dash: "Press the key, then click where to charge.",
 };
 
-/** An ability's cooldown at the hero's level, with the share higher levels have taken off it. */
-function cooldownText(base: number, heroLevel: number): string {
-  const factor = heroCooldownFactor(heroLevel);
+/** An ability's cooldown after the hero's level and items, with the share they have taken off it. */
+function cooldownText(base: number, factor: number): string {
   const seconds = `${Number((base * factor).toFixed(1))} s`;
-  return factor < 1 ? `${seconds} (−${Math.round((1 - factor) * 100)}% at level ${heroLevel})` : seconds;
+  return factor < 1 ? `${seconds} (−${Math.round((1 - factor) * 100)}% from level and items)` : seconds;
 }
 
-export function AbilityTip({ ability, heroLevel }: { ability: AbilityDef; heroLevel: number }) {
+export function AbilityTip({ ability, heroLevel, cooldownFactor }: { ability: AbilityDef; heroLevel: number; cooldownFactor: number }) {
   const locked = heroLevel < ability.unlockLevel;
   const damage = ability.damage !== undefined ? ability.damage + (ability.damagePerLevel ?? 0) * Math.max(0, heroLevel - 1) : undefined;
   return (
@@ -124,7 +124,7 @@ export function AbilityTip({ ability, heroLevel }: { ability: AbilityDef; heroLe
       <p className="tip-text">{ability.description}</p>
       <div className="tip-stats">
         {damage !== undefined && <Stat label="Damage" value={ability.damagePerLevel ? `${damage} (+${ability.damagePerLevel} per level)` : damage} />}
-        <Stat label="Cooldown" value={cooldownText(ability.cooldown, heroLevel)} />
+        <Stat label="Cooldown" value={cooldownText(ability.cooldown, cooldownFactor)} />
         {ability.range !== undefined && <Stat label="Range" value={ability.range} />}
         <Stat label="Radius" value={ability.radius} />
         {ability.duration !== undefined && <Stat label="Lasts" value={`${ability.duration} s`} />}
@@ -134,6 +134,33 @@ export function AbilityTip({ ability, heroLevel }: { ability: AbilityDef; heroLe
         <div className="tip-bad">Unlocks at hero level {ability.unlockLevel}</div>
       ) : (
         <div className="tip-hint">{TARGET_HINT[ability.effect] ?? "Press the key to use it."}</div>
+      )}
+    </>
+  );
+}
+
+/** An item's price and stats; `slot` marks one the hero carries, which sells back for part of its price. */
+export function ItemTip({ item, block, slot, canShop }: { item: ItemDef; block?: ShopBlock; slot?: number; canShop?: boolean }) {
+  const refund = itemRefund(item);
+  const refundText = RESOURCE_NAMES.filter((name) => refund[name]).map((name) => `${refund[name]} ${name}`).join(", ");
+  return (
+    <>
+      <Header name={item.name} />
+      <p className="tip-text">{item.description}</p>
+      {slot === undefined && <CostRow cost={item.cost} />}
+      <div className="tip-item-stats">
+        {itemStatLines(item).map((line) => (
+          <span key={line.icon}>
+            <Icon id={line.icon} /> {line.text}
+          </span>
+        ))}
+      </div>
+      {slot !== undefined ? (
+        canShop ? <div className="tip-hint">Click to sell for {refundText}.</div> : <div className="tip-hint">Sells for {refundText} near your town center. Items stay through death.</div>
+      ) : block ? (
+        <div className="tip-bad">{SHOP_BLOCK_TEXT[block]}</div>
+      ) : (
+        <div className="tip-hint">Click to buy.</div>
       )}
     </>
   );

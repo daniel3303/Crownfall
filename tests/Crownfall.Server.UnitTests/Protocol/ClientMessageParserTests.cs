@@ -73,6 +73,16 @@ public class ClientMessageParserTests
         (trade.Building, trade.Resource, trade.Buy).Should().Be((7, ResourceType.Stone, true));
     }
 
+    [Fact]
+    public void Parse_BuyAndSellItem_ReadTheItemAndTheSlot()
+    {
+        var buy = ClientMessageParser.Parse("""{"t":"cmd","c":{"type":"buyItem","item":"ironSword"}}""");
+        var sell = ClientMessageParser.Parse("""{"t":"cmd","c":{"type":"sellItem","slot":4}}""");
+
+        buy.Should().BeOfType<CommandRequest>().Which.Command.Should().BeOfType<BuyItemCommand>().Which.Item.Should().Be("ironSword");
+        sell.Should().BeOfType<CommandRequest>().Which.Command.Should().BeOfType<SellItemCommand>().Which.Slot.Should().Be(4);
+    }
+
     [Theory]
     [InlineData("not json")]
     [InlineData("""{"t":"cmd"}""")]

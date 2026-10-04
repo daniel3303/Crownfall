@@ -38,6 +38,34 @@ public class BotWallTests
         target.Hp.Should().BeLessThan(target.MaxHp, "the army should get through the gap to the town center");
     }
 
+    [Fact]
+    public void BotArmy_AtAWalledTownCenterGuardedByAFirstLevelHero_BeatsTheHeroInsteadOfFleeingIt()
+    {
+        var game = TestGames.Create(seed: 6);
+        var bot = game.Players[0];
+        var enemy = game.Players[1];
+        var target = game.TownCenter(enemy);
+        WallIn(game, enemy, target.Rect.Inflate(2));
+        var approach = BotBuilder.Toward(target.Position, game.TownCenter(bot).Position, 9);
+        for (var i = 0; i < ArmySize; i++)
+        {
+            game.Spawn("spearman", bot, game.Walkable(approach + new Vector2(i % 5 - 2, i / 5 - 2)));
+        }
+        foreach (var creep in game.Entities.Units.Where(u => u.Owner == null).ToList())
+        {
+            game.Kill(creep, null);
+        }
+        TestGames.EnableBot(game, bot, BotDifficulty.Hard);
+
+        for (var tick = 0; tick < TestGames.Seconds(120) && enemy.Hero != null; tick++)
+        {
+            game.Step([]);
+        }
+
+        enemy.Hero.Should().BeNull("a full wave should beat a lone first level hero rather than retreat and be chased home");
+        game.UnitsOf(bot, "spearman").Count.Should().BeGreaterThanOrEqualTo(ArmySize / 2);
+    }
+
     /// <summary>A ring of complete walls on every buildable tile of the rectangle's border.</summary>
     private static List<Building> WallIn(Game game, Player owner, TileRect ring)
     {

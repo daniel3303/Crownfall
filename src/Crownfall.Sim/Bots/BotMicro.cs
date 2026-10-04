@@ -1,5 +1,6 @@
 using System.Numerics;
 using Crownfall.Sim.Commands;
+using Crownfall.Sim.Content;
 using Crownfall.Sim.Entities;
 
 namespace Crownfall.Sim.Bots;
@@ -8,7 +9,8 @@ namespace Crownfall.Sim.Bots;
 /// Unit-level fighting for Normal and Hard bots: focus the visible soldier that removes the most enemy damage per hit
 /// spent, which picks off weak units and finishes a worn-down hero, then villagers, then the objective building; archers
 /// trail the melee line, units step out from under enemy meteor strikes seen being cast, and Hard bots also step archers
-/// back from melee attackers. Nobody stays locked onto a boss creep.
+/// back from melee attackers and keep melee soldiers an enemy hero's ready area ability would kill out of its reach,
+/// all but a few baits, until it is spent. Nobody stays locked onto a boss creep.
 /// </summary>
 public sealed class BotMicro
 {
@@ -20,6 +22,19 @@ public sealed class BotMicro
     private const float ArcherTrail = 3f;
     private const float OrderTolerance = 3f;
     private const float DodgeMargin = 1.5f;
+
+    // Tiles beyond an area ability's reach a fragile soldier keeps from the hero, since both move between thinks.
+    private const float AreaMargin = 1f;
+    private const float AreaStepOut = 1f;
+
+    // Fragile melee soldiers allowed inside a ready area ability's reach: enough to make the hero spend it.
+    private const int AreaBaits = 3;
+
+    // An area ability this close to coming back already counts as ready.
+    private const float AreaReadySeconds = 1.5f;
+
+    // A hero this worn down is swarmed whatever its abilities can still do.
+    private const float FinishHealth = 0.2f;
 
     // A new target must be worth this much more before a unit drops the soldier it is already hitting.
     private const float Stickiness = 1.25f;
@@ -34,6 +49,8 @@ public sealed class BotMicro
     private readonly List<int> _melee = [];
     private readonly List<int> _ranged = [];
     private readonly List<KnownStrike> _strikes = [];
+    private readonly List<AreaThreat> _threats = [];
+    private readonly List<int> _baits = [];
 
     public BotMicro(Game game, Player player, BotProfile profile, BotCombatModel model, BotMemory memory)
     {
@@ -48,16 +65,17 @@ public sealed class BotMicro
     /// Orders each unit at its best target, or onward to <paramref name="advance"/>; plain attack-move when micro is off.
     /// <paramref name="objectiveBuilding"/> is attacked once in sight, 0 for none.
     /// </summary>
-    public void Fight(IReadOnlyList<Unit> units, Vector2 advance, int objectiveBuilding)
+    public void Fight(BotView view, IReadOnlyList<Unit> units, Vector2 advance, int objectiveBuilding)
     {
         _attacks.Clear();
         _melee.Clear();
         _ranged.Clear();
         CollectStrikes();
+        CollectAreaThreats(view, units);
         var centroid = Centroid(units);
         foreach (var unit in units)
         {
-            if (TryDodge(unit) || LeaveBoss(unit, advance))
+            if (TryDodge(unit) || LeaveBoss(unit, advance) || TryRespectArea(unit))
             {
                 continue;
             }
@@ -95,6 +113,90 @@ public sealed class BotMicro
         {
             _strikes.AddRange(_memory.Strikes.Where(s => s.ImpactTick >= _game.Tick));
         }
+    }
+
+    /// <summary>
+    /// Visible enemy heroes whose area ability around themselves is ready, or nearly, and kills; for each, the fragile melee
+    /// soldiers nearest it, up to the bait count, may still fight it.
+    /// </summary>
+    private void CollectAreaThreats(BotView view, IReadOnlyList<Unit> units)
+    {
+        _threats.Clear();
+        _baits.Clear();
+        if (!_profile.RespectAreaAbilities)
+        {
+            return;
+        }
+        var abilities = _game.Content.Abilities;
+        var soon = (int)(AreaReadySeconds * _game.Content.Rules.TickRate);
+        foreach (var hero in view.EnemyUnits.Where(u => u.IsHero && u.Hp > u.MaxHp * FinishHealth))
+        {
+            var level = hero.Hero.Level;
+            for (var slot = 0; slot < abilities.Count; slot++)
+            {
+                var ability = abilities[slot];
+                if (ability.Effect == AbilityEffect.Nova && level >= ability.UnlockLevel && _memory.AbilityReadyTick(hero, slot) <= _game.Tick + soon)
+                {
+                    var threat = new AreaThreat(hero, ability.Radius, ability.DamageAt(level));
+                    _threats.Add(threat);
+                    _baits.AddRange(units.Where(u => IsFragile(u, threat) && InReach(u.Position, u.Radius, threat))
+                        .OrderBy(u => Vector2.DistanceSquared(u.Position, hero.Position))
+                        .ThenBy(u => u.Id)
+                        .Take(AreaBaits)
+                        .Select(u => u.Id));
+                }
+            }
+        }
+    }
+
+    /// <summary>A fragile melee soldier inside a ready area ability's reach that is not one of its baits steps back out.</summary>
+    private bool TryRespectArea(Unit unit)
+    {
+        if (_baits.Contains(unit.Id))
+        {
+            return false;
+        }
+        foreach (var threat in _threats)
+        {
+            if (!IsFragile(unit, threat) || !InReach(unit.Position, unit.Radius, threat))
+            {
+                continue;
+            }
+            var away = unit.Position - threat.Hero.Position;
+            var direction = away.LengthSquared() < 0.0001f ? Vector2.UnitX : Vector2.Normalize(away);
+            var exit = threat.Hero.Position + direction * (threat.Radius + unit.Radius + AreaMargin + AreaStepOut);
+            _game.Commands.Apply(_player, new MoveCommand { Units = [unit.Id], X = exit.X, Y = exit.Y });
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>True when the area ability would kill this melee soldier outright.</summary>
+    private static bool IsFragile(Unit unit, AreaThreat threat)
+    {
+        return !unit.Def.IsRanged && !unit.IsHero && unit.Hp <= threat.Damage;
+    }
+
+    private static bool InReach(Vector2 point, float radius, AreaThreat threat)
+    {
+        return Vector2.Distance(point, threat.Hero.Position) <= threat.Radius + radius + AreaMargin;
+    }
+
+    /// <summary>True when a fragile melee soldier, not a bait, would have to stand inside a ready area ability to hit the enemy.</summary>
+    private bool IsGuarded(Unit unit, Unit enemy)
+    {
+        if (_threats.Count == 0 || _baits.Contains(unit.Id))
+        {
+            return false;
+        }
+        foreach (var threat in _threats)
+        {
+            if (IsFragile(unit, threat) && InReach(enemy.Position, enemy.Radius + unit.Def.Range, threat))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private bool TryDodge(Unit unit)
@@ -135,7 +237,7 @@ public sealed class BotMicro
         var villagerDistance = float.MaxValue;
         foreach (var enemy in _nearby)
         {
-            if (!IsEnemy(enemy))
+            if (!IsEnemy(enemy) || IsGuarded(unit, enemy))
             {
                 continue;
             }
@@ -163,14 +265,14 @@ public sealed class BotMicro
     /// <summary>Enemy damage per second removed per hit this unit needs to kill the target.</summary>
     private float KillValue(Unit unit, Unit enemy)
     {
-        var hits = MathF.Ceiling(enemy.Hp / BotCombatModel.HitDamage(unit, enemy.Def));
+        var hits = MathF.Ceiling(enemy.Hp / BotCombatModel.HitDamage(unit, enemy));
         return _model.ThreatDps(enemy) / MathF.Max(1, hits);
     }
 
     /// <summary>Keeps hitting the current soldier unless the new pick is clearly worth more, which avoids re-pathing every think.</summary>
     private Unit KeepCurrent(Unit unit, Unit best, float bestValue)
     {
-        if (unit.Order is not { Type: OrderType.Attack, Target: Unit current } || !IsEnemy(current) || current.Def.IsVillager)
+        if (unit.Order is not { Type: OrderType.Attack, Target: Unit current } || !IsEnemy(current) || current.Def.IsVillager || IsGuarded(unit, current))
         {
             return best;
         }

@@ -16,6 +16,9 @@ public sealed class UnitDef
     public DamageType DamageType { get; set; }
     public float Range { get; set; }
     public float Cooldown { get; set; }
+
+    /// <summary>Radius around the target within which each basic attack also hits every other enemy unit; 0 for none.</summary>
+    public float Splash { get; set; }
     public ArmorDef Armor { get; set; } = new();
     public float Speed { get; set; }
     public int Sight { get; set; }
@@ -54,6 +57,10 @@ public sealed class UnitDef
 
     [JsonIgnore]
     public bool IsCreep { get; internal set; }
+
+    /// <summary>A creep that fights only what attacks it and that units never pick as a target on their own.</summary>
+    [JsonIgnore]
+    public bool IsPassive { get; internal set; }
 
     [JsonIgnore]
     public bool IsMilitary { get; internal set; }

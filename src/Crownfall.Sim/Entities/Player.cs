@@ -28,6 +28,12 @@ public sealed class Player
     public int LastStorageNoticeTick { get; set; } = -100000;
     public int LastRaidNoticeTick { get; set; } = -100000;
 
+    /// <summary>Share of extra attack damage every unit of this player deals, from slaying the dragon; 0 when none.</summary>
+    public float AttackBuff { get; set; }
+
+    /// <summary>Tick at which <see cref="AttackBuff"/> wears off.</summary>
+    public int AttackBuffUntilTick { get; set; } = -1;
+
     /// <summary>This player's market mid prices in gold per lot, by resource; gold's slot is unused.</summary>
     public float[] MarketPrices { get; init; } = new float[Core.Resources.Count];
 }

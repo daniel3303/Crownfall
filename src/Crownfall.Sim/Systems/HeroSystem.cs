@@ -5,7 +5,10 @@ using Crownfall.Sim.Events;
 
 namespace Crownfall.Sim.Systems;
 
-/// <summary>Hero XP, levels and stat points, resting regeneration, and paid revival at a town center after a cooldown.</summary>
+/// <summary>
+/// Hero XP, levels and stat points, regeneration, kill bounties with first blood, streaks and shutdowns, and paid revival
+/// at a town center after a cooldown.
+/// </summary>
 public sealed class HeroSystem
 {
     private const float SpawnClearance = 0.8f;
@@ -16,6 +19,9 @@ public sealed class HeroSystem
     {
         _game = game;
     }
+
+    /// <summary>True once any hero has been slain by an enemy; the first such kill pays the first-blood bonus.</summary>
+    public bool FirstBloodTaken { get; private set; }
 
     public void Update()
     {
@@ -44,10 +50,21 @@ public sealed class HeroSystem
         return hero;
     }
 
-    public void OnHeroDied(Unit hero)
+    /// <summary>
+    /// Settles a hero's death: an enemy killer earns the bounty and grows its own streak, then the fallen hero's streak
+    /// ends and its revive cooldown starts. The bounty reads the streak before it is reset.
+    /// </summary>
+    public void OnHeroSlain(Unit hero, Player killer)
     {
         var player = hero.Owner;
         var state = player.HeroState;
+        if (killer != null && killer.Team != hero.Team)
+        {
+            killer.HeroState.KillStreak++;
+            AwardKillGold(hero, killer, state.KillStreak);
+            AnnounceStreak(killer, hero.Position);
+        }
+        state.KillStreak = 0;
         player.Hero = null;
         var seconds = ReviveCooldownSeconds(state.Level);
         state.ReviveTick = _game.Tick + (int)(seconds * _game.Content.Rules.TickRate);
@@ -61,17 +78,76 @@ public sealed class HeroSystem
         return rules.HeroKillGold + rules.HeroKillGoldPerLevel * Math.Max(0, level - 1);
     }
 
-    /// <summary>Pays the enemy who slew a hero its bounty, shown where the hero fell.</summary>
-    public void AwardKillGold(Unit hero, Player killer)
+    /// <summary>Extra gold for ending a streak this long; nothing below the rules' shutdown streak.</summary>
+    public int ShutdownGold(int streak)
     {
-        if (killer == null || killer.Team == hero.Team)
+        var rules = _game.Content.Rules;
+        return streak < rules.HeroShutdownStreak || rules.HeroShutdownStreak <= 0
+            ? 0
+            : rules.HeroShutdownGold + rules.HeroShutdownGoldPerKill * (streak - rules.HeroShutdownStreak);
+    }
+
+    /// <summary>The announced title for reaching a streak, or null between tiers; the top tier repeats past its count.</summary>
+    public string StreakTitle(int streak)
+    {
+        var tiers = _game.Content.Rules.KillStreaks;
+        if (tiers.Count > 0 && streak > tiers[^1].Kills)
         {
-            return;
+            return tiers[^1].Title;
         }
+        return tiers.FirstOrDefault(t => t.Kills == streak)?.Title;
+    }
+
+    /// <summary>
+    /// Pays the killer the level bounty plus any first-blood and shutdown bonus, shown where the hero fell, and
+    /// announces the bonuses to everyone.
+    /// </summary>
+    private void AwardKillGold(Unit hero, Player killer, int victimStreak)
+    {
+        var rules = _game.Content.Rules;
+        var firstBlood = !FirstBloodTaken;
+        FirstBloodTaken = true;
+        var shutdown = ShutdownGold(victimStreak);
+        var bonuses = new List<string>();
         var gold = KillGold(hero.Hero.Level);
+        if (firstBlood && rules.FirstBloodGold > 0)
+        {
+            gold += rules.FirstBloodGold;
+            bonuses.Add($"first blood +{rules.FirstBloodGold}");
+        }
+        if (shutdown > 0)
+        {
+            gold += shutdown;
+            bonuses.Add($"shutdown +{shutdown}");
+        }
         _game.Storage.Store(killer, ResourceType.Gold, gold);
         _game.Events.Add(new DepositEvent { Player = killer.Index, X = hero.Position.X, Y = hero.Position.Y, Resource = ResourceType.Gold, Amount = gold });
-        _game.Notify(killer, $"Enemy hero slain: +{gold} gold.", NoticeTone.Success, hero.Position);
+        var detail = bonuses.Count > 0 ? $" ({string.Join(", ", bonuses)})" : "";
+        _game.Notify(killer, $"Enemy hero slain: +{gold} gold{detail}.", NoticeTone.Success, hero.Position);
+        if (firstBlood)
+        {
+            Announce(AnnouncementType.FirstBlood, "First Blood", $"{killer.Name} drew first blood against {hero.Owner.Name}.", killer, hero.Position);
+        }
+        if (shutdown > 0)
+        {
+            var ended = _game.Content.Rules.KillStreaks.LastOrDefault(t => t.Kills <= victimStreak)?.Title ?? "streak";
+            Announce(AnnouncementType.Shutdown, "Shutdown", $"{killer.Name} ended {hero.Owner.Name}'s {ended}.", killer, hero.Position);
+        }
+    }
+
+    private void AnnounceStreak(Player killer, Vector2 at)
+    {
+        var streak = killer.HeroState.KillStreak;
+        var title = StreakTitle(streak);
+        if (title != null)
+        {
+            Announce(AnnouncementType.KillStreak, title, $"{killer.Name} has slain {streak} heroes without dying.", killer, at);
+        }
+    }
+
+    private void Announce(AnnouncementType type, string title, string text, Player player, Vector2 at)
+    {
+        _game.Events.Add(new AnnouncementEvent { Type = type, Title = title, Text = text, Player = player.Index, Team = player.Team, X = at.X, Y = at.Y });
     }
 
     public float ReviveCooldownSeconds(int level)
@@ -239,14 +315,15 @@ public sealed class HeroSystem
         hero.Hp += hp;
     }
 
-    /// <summary>A hero left unhurt for the rule's delay heals a share of its max hp every tick, up to full.</summary>
+    /// <summary>Items heal the hero at all times; once left unhurt for the rule's delay it also heals a share of its max hp.</summary>
     private void Regenerate(Unit hero)
     {
-        if (hero.Hp >= hero.MaxHp || !IsResting(hero))
+        if (hero.Hp >= hero.MaxHp)
         {
             return;
         }
-        hero.Hp = MathF.Min(hero.MaxHp, hero.Hp + RegenPerSecond(hero) * _game.Dt);
+        var perSecond = hero.Hero.ItemRegen + (IsResting(hero) ? RegenPerSecond(hero) : 0);
+        hero.Hp = MathF.Min(hero.MaxHp, hero.Hp + perSecond * _game.Dt);
     }
 
     public bool IsResting(Unit hero)

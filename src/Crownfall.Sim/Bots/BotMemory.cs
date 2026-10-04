@@ -29,6 +29,7 @@ public sealed class BotMemory
     private readonly float[] _mix;
     private readonly List<int> _stale = [];
     private readonly List<KnownStrike> _strikes = [];
+    private readonly SortedDictionary<int, int[]> _casts = [];
     private readonly float _averagePower;
     private readonly float _averageTrainSeconds;
 
@@ -54,6 +55,12 @@ public sealed class BotMemory
 
     /// <summary>Likely enemy start spots, nearest first, from the map's rotational symmetry around its center.</summary>
     public IReadOnlyList<Vector2> CandidateStarts { get; }
+
+    /// <summary>True while the team believes the dragon is on the map, from its announced landing or from sight.</summary>
+    public bool DragonUp { get; private set; }
+
+    /// <summary>The dragon's health when last seen; its full health until it is seen after a landing.</summary>
+    public float DragonHp { get; private set; }
 
     public float EnemyArmyPower { get; private set; }
     public int LastArmySightingTick { get; private set; } = -100000;
@@ -124,7 +131,7 @@ public sealed class BotMemory
 
     public bool IsCampLikelyAlive(KnownCamp camp, int tick)
     {
-        var respawnTicks = (int)(_game.Content.Rules.CampRespawnSeconds * _game.Content.Rules.TickRate);
+        var respawnTicks = (int)(camp.RespawnSeconds * _game.Content.Rules.TickRate);
         return camp.LastAliveTick >= camp.LastEmptyTick || tick - camp.LastEmptyTick >= respawnTicks;
     }
 
@@ -178,13 +185,59 @@ public sealed class BotMemory
         known.LastSeenTick = tick;
     }
 
-    /// <summary>An enemy cast the team saw; delayed strikes are kept so soldiers can step out before they land.</summary>
+    /// <summary>
+    /// An enemy cast the team saw: delayed strikes are kept so soldiers can step out before they land, and every cast
+    /// starts that ability's cooldown in memory, so soldiers know when the hero can use it again.
+    /// </summary>
     public void Witness(AbilityEvent ability, int tick)
     {
-        if (ability.Team != _player.Team && ability.DelayTicks > 0)
+        if (ability.Team == _player.Team)
+        {
+            return;
+        }
+        if (ability.DelayTicks > 0)
         {
             _strikes.Add(new KnownStrike { Point = new Vector2(ability.X, ability.Y), Radius = ability.Radius, ImpactTick = tick + ability.DelayTicks });
         }
+        if (!_casts.TryGetValue(ability.Hero, out var casts))
+        {
+            casts = Enumerable.Repeat(int.MinValue / 2, _game.Content.Abilities.Count).ToArray();
+            _casts[ability.Hero] = casts;
+        }
+        if (ability.Slot >= 0 && ability.Slot < casts.Length)
+        {
+            casts[ability.Slot] = tick;
+        }
+    }
+
+    /// <summary>The dragon's landing and fall are announced to every player.</summary>
+    public void Witness(AnnouncementEvent announcement)
+    {
+        if (announcement.Type == AnnouncementType.DragonSpawned)
+        {
+            DragonUp = true;
+            DragonHp = _game.Content.DragonUnit.Hp;
+        }
+        else if (announcement.Type == AnnouncementType.DragonSlain)
+        {
+            DragonUp = false;
+        }
+    }
+
+    /// <summary>
+    /// Tick at which an enemy hero can next use an ability, judged from the last cast the team saw and the cooldown at the
+    /// hero's level; a hero never seen casting it is assumed ready.
+    /// </summary>
+    public int AbilityReadyTick(Unit hero, int slot)
+    {
+        if (!_casts.TryGetValue(hero.Id, out var casts) || slot >= casts.Length)
+        {
+            return int.MinValue / 2;
+        }
+        var ability = _game.Content.Abilities[slot];
+        var level = hero.Hero?.Level ?? 1;
+        var rules = _game.Content.Rules;
+        return casts[slot] + (int)(ability.Cooldown * rules.HeroCooldownFactor(level) * rules.TickRate);
     }
 
     /// <summary>
@@ -247,6 +300,11 @@ public sealed class BotMemory
 
     private void ObserveCamps(BotView view)
     {
+        if (DragonUp && _game.Content.DragonUnit != null)
+        {
+            // An unseen dragon may have walked home and healed, so only health seen this moment counts.
+            DragonHp = _game.Content.DragonUnit.Hp;
+        }
         foreach (var creep in view.Creeps)
         {
             if (creep.Camp == null)
@@ -260,12 +318,23 @@ public sealed class BotMemory
             }
             camp.LastAliveTick = view.Tick;
             camp.HasBoss |= creep.Def.HasTag("boss");
+            camp.IsPassive |= creep.Def.IsPassive;
+            camp.RespawnSeconds = creep.Camp.RespawnSeconds;
+            if (creep.Camp.IsLair)
+            {
+                DragonUp = true;
+                DragonHp = creep.Hp;
+            }
         }
         foreach (var camp in _camps.Values)
         {
             if (camp.LastAliveTick != view.Tick && _game.Vision.IsPointVisible(_player.Team, camp.Center))
             {
                 camp.LastEmptyTick = view.Tick;
+                if (camp.IsPassive)
+                {
+                    DragonUp = false;
+                }
             }
         }
     }

@@ -7,4 +7,7 @@ public enum BotMode
     Attacking,
     Retreating,
     Defending,
+
+    /// <summary>The army fights the dragon at its lair.</summary>
+    Slaying,
 }

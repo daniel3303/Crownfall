@@ -36,6 +36,8 @@ export interface UnitDef {
   bounty?: Cost;
   /** Per-level growth; each level adds `curve` times more of it than the one before. */
   growth?: { hp: number; attack: number; curve?: number };
+  /** Radius around a melee blow's target in which every other enemy takes the full blow too. */
+  splash?: number;
 }
 
 export interface BuildingDef {
@@ -153,6 +155,39 @@ export interface HeroStatDef {
   description: string;
 }
 
+/** An item a hero carries in an inventory slot; every stat is flat or a fraction, and a stat left out is 0. */
+export interface ItemDef {
+  id: string;
+  name: string;
+  cost: Cost;
+  attack?: number;
+  hp?: number;
+  armor?: Armor;
+  attackSpeed?: number;
+  moveSpeed?: number;
+  lifeSteal?: number;
+  /** Hp per second, always on. */
+  regen?: number;
+  /** Share taken off ability cooldowns, before the overall cap. */
+  cooldownReduction?: number;
+  description: string;
+}
+
+export interface KillStreakDef {
+  kills: number;
+  title: string;
+}
+
+export interface DragonDef {
+  unit: string;
+  spawnSeconds: number;
+  respawnSeconds: number;
+  gold: number;
+  buffSeconds: number;
+  buffAttack: number;
+  leashRange: number;
+}
+
 export interface Rules {
   tickRate: number;
   carryCapacity: number;
@@ -166,6 +201,18 @@ export interface Rules {
   heroKillGoldPerLevel: number;
   heroCooldownReductionPerLevel: number;
   heroCooldownReductionMax: number;
+  /** Cap on level and item cooldown reduction together. */
+  heroCooldownReductionCap: number;
+  firstBloodGold: number;
+  heroShutdownStreak: number;
+  heroShutdownGold: number;
+  heroShutdownGoldPerKill: number;
+  killStreaks: KillStreakDef[];
+  heroInventorySlots: number;
+  /** Tiles from an own completed town center within which a hero trades items. */
+  itemShopRange: number;
+  itemSellRefund: number;
+  dragon?: DragonDef;
   heroRegenDelaySeconds: number;
   heroRegenPerSecond: number;
   stealRate: number;
@@ -180,6 +227,7 @@ export interface GameContent {
   races: RaceDef[];
   abilities: AbilityDef[];
   heroStats: HeroStatDef[];
+  items: ItemDef[];
 }
 
 export type KindInfo =
@@ -295,10 +343,32 @@ export function heroKillGold(level: number): number {
   return content.rules.heroKillGold + content.rules.heroKillGoldPerLevel * Math.max(0, level - 1);
 }
 
-/** What an ability's cooldown is multiplied by for a hero of this level, as the server's RulesDef works it out. */
-export function heroCooldownFactor(level: number): number {
+/** What an ability's cooldown is multiplied by for a hero of this level and item reduction, as the server's RulesDef works it out. */
+export function heroCooldownFactor(level: number, itemReduction = 0): number {
   const rules = content.rules;
-  return 1 - Math.min(rules.heroCooldownReductionMax, rules.heroCooldownReductionPerLevel * Math.max(0, level - 1));
+  const fromLevel = Math.min(rules.heroCooldownReductionMax, rules.heroCooldownReductionPerLevel * Math.max(0, level - 1));
+  return 1 - Math.min(Math.max(rules.heroCooldownReductionMax, rules.heroCooldownReductionCap), fromLevel + itemReduction);
+}
+
+export function itemDef(id: string): ItemDef | undefined {
+  return content.items.find((i) => i.id === id);
+}
+
+/** Gold and other resources selling an item gives back, rounded down like the server. */
+export function itemRefund(item: ItemDef): Cost {
+  const refund: Cost = {};
+  for (const name of RESOURCE_NAMES) {
+    const amount = Math.floor((item.cost[name] ?? 0) * content.rules.itemSellRefund);
+    if (amount > 0) refund[name] = amount;
+  }
+  return refund;
+}
+
+/** Gold the slayer earns for ending a streak of this length, on top of the kill bounty. */
+export function shutdownGold(streak: number): number {
+  const rules = content.rules;
+  if (rules.heroShutdownStreak <= 0 || streak < rules.heroShutdownStreak) return 0;
+  return rules.heroShutdownGold + rules.heroShutdownGoldPerKill * (streak - rules.heroShutdownStreak);
 }
 
 export interface TroopRank {

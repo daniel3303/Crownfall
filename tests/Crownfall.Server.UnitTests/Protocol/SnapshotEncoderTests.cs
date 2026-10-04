@@ -94,6 +94,24 @@ public class SnapshotEncoderTests
     }
 
     [Fact]
+    public void Describe_SoldierOfATeamWithTheDragonBuff_IsFlaggedBuffed()
+    {
+        var content = ContentDb.Load(ContentDb.FindDefaultPath());
+        var game = new Game(content, new MatchConfig { Seed = 1, Teams = 2, PlayersPerTeam = 1 }, [
+            new PlayerSetup { Name = "A", Team = 0, Race = "humans" },
+            new PlayerSetup { Name = "B", Team = 1, Race = "orcs" },
+        ]);
+        var owner = game.Players[0];
+        var soldier = game.SpawnUnit(content.Unit("spearman"), owner, owner.Hero.Position);
+        var unbuffed = ((SnapshotFlags)SnapshotEncoder.Describe(soldier, game.Tick).Flags).HasFlag(SnapshotFlags.Buffed);
+
+        owner.AttackBuff = content.Rules.Dragon.BuffAttack;
+
+        unbuffed.Should().BeFalse();
+        ((SnapshotFlags)SnapshotEncoder.Describe(soldier, game.Tick).Flags).Should().HaveFlag(SnapshotFlags.Buffed);
+    }
+
+    [Fact]
     public void Describe_UpgradingBuilding_SendsItsLevelAndUpgradeProgress()
     {
         var content = ContentDb.Load(ContentDb.FindDefaultPath());

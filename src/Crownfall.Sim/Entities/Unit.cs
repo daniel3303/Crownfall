@@ -53,6 +53,12 @@ public sealed class Unit : Entity
     public override ArmorDef Armor => Def.Armor;
 
     public bool IsHero => Hero != null;
+
+    /// <summary>Armor against a damage type: the unit type's, plus what a hero's items add.</summary>
+    public float ArmorAgainst(DamageType type)
+    {
+        return Def.Armor.Against(type) + (Hero?.ArmorBonus(type) ?? 0);
+    }
     public bool IsCarrying => CarryAmount > 0;
 
     /// <summary>The level of the building that trained the unit when that level drills stronger troops, else 1.</summary>
@@ -61,7 +67,11 @@ public sealed class Unit : Entity
     /// <summary>Attack multiplier the unit's rank grants.</summary>
     public float RankAttack { get; set; } = 1;
 
-    public float AttackDamage => Def.Attack * RankAttack + (Hero?.BonusAttack ?? 0);
+    /// <summary>Attack with rank, hero bonuses and the owner's dragon buff, which multiplies all of it.</summary>
+    public float AttackDamage => (Def.Attack * RankAttack + (Hero?.BonusAttack ?? 0)) * (1 + (Owner?.AttackBuff ?? 0));
+
+    /// <summary>True while the owner's team holds the dragon's attack buff.</summary>
+    public bool HasTeamBuff => Owner is { AttackBuff: > 0 };
 
     /// <summary>Radius in which the unit picks its own fights; kept apart from the wider sight.</summary>
     public float AcquireRange => Def.Acquire;

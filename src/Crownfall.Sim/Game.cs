@@ -50,6 +50,8 @@ public sealed class Game
         Walls = new WallSystem(this);
         Players = MatchSetup.CreatePlayers(content, Config, Layout, setups);
         Market = new MarketSystem(this);
+        Shop = new ShopSystem(this);
+        Dragon = new DragonSystem(this);
         MatchSetup.Populate(this);
         foreach (var player in Players.Where(p => p.IsBot))
         {
@@ -90,6 +92,8 @@ public sealed class Game
     public RaidSystem Raids { get; }
     public WallSystem Walls { get; }
     public MarketSystem Market { get; }
+    public ShopSystem Shop { get; }
+    public DragonSystem Dragon { get; }
     public int Tick { get; private set; }
     public bool IsOver { get; private set; }
     public int WinningTeam { get; private set; } = -1;
@@ -124,6 +128,7 @@ public sealed class Game
         Upgrades.Update();
         Production.Update();
         Market.Update();
+        Dragon.Update();
         Heroes.Update();
         Abilities.Update();
         var units = Entities.Units;
@@ -314,8 +319,7 @@ public sealed class Game
     {
         if (unit.IsHero && unit.Owner != null)
         {
-            Heroes.OnHeroDied(unit);
-            Heroes.AwardKillGold(unit, killer);
+            Heroes.OnHeroSlain(unit, killer);
         }
         if (unit.Camp != null)
         {

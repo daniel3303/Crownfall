@@ -1,10 +1,11 @@
 using Crownfall.Server.Protocol.Messages;
 using Crownfall.Sim;
+using Crownfall.Sim.Content;
 using Crownfall.Sim.Entities;
 
 namespace Crownfall.Server.Matches;
 
-/// <summary>Builds the viewer's <see cref="HeroView"/>; a fallen hero reports the stats it will return with.</summary>
+/// <summary>Builds the viewer's <see cref="HeroView"/>; a fallen hero reports the stats, items included, it will return with.</summary>
 internal static class HeroViewFactory
 {
     public static HeroView Create(Game game, Player viewer)
@@ -27,13 +28,17 @@ internal static class HeroViewFactory
             ReviveSeconds = MathF.Max(0, reviveTicks / (float)rules.TickRate),
             CanRevive = game.Heroes.CanRevive(viewer) && game.Heroes.ReviveSite(viewer, 0) != null,
             ReviveCost = game.Heroes.ReviveCost(viewer),
+            Items = state.Items.Select(i => i?.Id).ToArray(),
+            CanShop = game.Shop.Refusal(viewer) == null,
+            Streak = state.KillStreak,
+            CooldownFactor = rules.HeroCooldownFactor(state.Level, state.ItemCooldownReduction),
             Stats = hero == null ? Resting(state) : Live(game, hero),
         };
     }
 
     private static HeroStatsView Live(Game game, Unit hero)
     {
-        var regenerating = hero.Hp < hero.MaxHp && game.Heroes.IsResting(hero);
+        var regen = hero.Hero.ItemRegen + (game.Heroes.IsResting(hero) ? game.Heroes.RegenPerSecond(hero) : 0);
         return new HeroStatsView
         {
             Hp = hero.Hp,
@@ -42,12 +47,12 @@ internal static class HeroViewFactory
             Cooldown = hero.CooldownAt(game.Tick),
             Range = hero.Def.Range,
             Speed = hero.SpeedAt(game.Tick),
-            ArmorMelee = hero.Armor.Melee,
-            ArmorPierce = hero.Armor.Pierce,
+            ArmorMelee = hero.ArmorAgainst(DamageType.Melee),
+            ArmorPierce = hero.ArmorAgainst(DamageType.Pierce),
             LifeSteal = hero.Hero.LifeSteal,
             Sight = hero.Sight,
-            Regen = game.Heroes.RegenPerSecond(hero),
-            Regenerating = regenerating,
+            Regen = regen,
+            Regenerating = hero.Hp < hero.MaxHp && regen > 0,
         };
     }
 
@@ -62,8 +67,8 @@ internal static class HeroViewFactory
             Cooldown = def.Cooldown / (1 + state.AttackSpeedBonus),
             Range = def.Range,
             Speed = def.Speed * (1 + state.MoveSpeedBonus),
-            ArmorMelee = def.Armor.Melee,
-            ArmorPierce = def.Armor.Pierce,
+            ArmorMelee = def.Armor.Melee + state.ArmorBonus(DamageType.Melee),
+            ArmorPierce = def.Armor.Pierce + state.ArmorBonus(DamageType.Pierce),
             LifeSteal = state.LifeSteal,
             Sight = def.Sight,
             Regen = 0,

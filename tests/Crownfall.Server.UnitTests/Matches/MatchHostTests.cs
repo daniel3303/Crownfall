@@ -113,6 +113,24 @@ public class MatchHostTests
     }
 
     [Fact]
+    public void Playing_StateCarriesTheDragonsLandingTimer()
+    {
+        using var match = QuickMatch();
+        var client = new FakeClient();
+        Join(match, client, "Ana");
+
+        for (var i = 0; i < 10; i++)
+        {
+            match.Tick();
+        }
+
+        var state = client.Last<StateMessage>();
+        state.Dragon.IsUp.Should().BeFalse();
+        state.Dragon.LandsInSeconds.Should().BeLessThan(Content.Rules.Dragon.SpawnSeconds).And.BeGreaterThan(Content.Rules.Dragon.SpawnSeconds - 2);
+        state.Dragon.BuffSeconds.Should().Be(0);
+    }
+
+    [Fact]
     public void Playing_StateCarriesStorageCapsAndMarketPrices()
     {
         using var match = QuickMatch();

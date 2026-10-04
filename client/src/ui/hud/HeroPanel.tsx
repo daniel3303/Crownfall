@@ -1,9 +1,9 @@
-import { canAfford, content, costList, RESOURCE_NAMES, unitDef, type Cost } from "../../content/content";
+import { canAfford, content, costList, itemDef, RESOURCE_NAMES, shutdownGold, unitDef, type Cost } from "../../content/content";
 import type { HeroState } from "../../net/protocol";
 import { session } from "../../session";
 import { Icon, Portrait } from "../icons";
-import { useHud } from "../store";
-import { AbilityTip, HeroStatTip, ReviveTip, TextTip } from "../tooltip/Tips";
+import { store, useHud } from "../store";
+import { AbilityTip, HeroStatTip, ItemTip, ReviveTip, TextTip } from "../tooltip/Tips";
 import { tipProps } from "../tooltip/use-tip";
 import { heroStatRows } from "./hero-stats";
 
@@ -28,11 +28,15 @@ export function HeroPanel() {
         {dead && <span className="hero-dead">{hero.reviveSeconds > 0 ? Math.ceil(hero.reviveSeconds) : <Icon id="revive" />}</span>}
       </button>
       <div className="hero-body">
-        <div className="hero-name">{def.name}</div>
+        <div className="hero-name">
+          {def.name}
+          {hero.streak > 0 && <StreakBadge streak={hero.streak} />}
+        </div>
         <HealthBar hero={hero} />
         <XpBar hero={hero} />
         <Abilities hero={hero} dead={dead} />
       </div>
+      <Inventory hero={hero} />
       <div className="hero-stats">
         {heroStatRows(hero).map((row) => (
           <span key={row.id} className="hero-stat" {...tipProps(() => <TextTip title={row.label} text={row.tip} />)}>
@@ -43,6 +47,18 @@ export function HeroPanel() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** The hero's kill streak, and what an enemy earns for ending it. */
+function StreakBadge({ streak }: { streak: number }) {
+  const bounty = shutdownGold(streak);
+  const text = `${streak} enemy ${streak === 1 ? "hero" : "heroes"} slain since your hero last fell. ${bounty > 0 ? `The enemy who ends it earns ${bounty} extra gold.` : `From ${content.rules.heroShutdownStreak} kills, ending it pays the enemy a shutdown bonus.`}`;
+  return (
+    <span className="hero-streak" {...tipProps(() => <TextTip title="Kill streak" text={text} />)}>
+      <Icon id="streak" />
+      {streak}
+    </span>
   );
 }
 
@@ -83,7 +99,7 @@ function Abilities({ hero, dead }: { hero: HeroState; dead: boolean }) {
             key={ability.id}
             className={`ability ${locked ? "locked" : ""}`}
             disabled={dead}
-            {...tipProps(() => <AbilityTip ability={ability} heroLevel={hero.level} />)}
+            {...tipProps(() => <AbilityTip ability={ability} heroLevel={hero.level} cooldownFactor={hero.cooldownFactor} />)}
             onClick={() => session.game?.castAbility(slot, false)}
           >
             <span>
@@ -100,6 +116,44 @@ function Abilities({ hero, dead }: { hero: HeroState; dead: boolean }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The hero's item slots and the shop button. With the shop open and the hero at a town center, clicking a carried item
+ * sells it; otherwise a click opens the shop.
+ */
+function Inventory({ hero }: { hero: HeroState }) {
+  const shopOpen = useHud((s) => s.shop);
+  const items = hero.items ?? [];
+  return (
+    <div className="inventory">
+      <div className="inventory-slots">
+        {items.map((id, slot) => {
+          const item = id ? itemDef(id) : undefined;
+          const selling = !!item && shopOpen && hero.canShop;
+          return (
+            <button
+              key={slot}
+              className={`item-slot ${item ? "filled" : "empty"} ${selling ? "selling" : ""}`}
+              onClick={() => (selling ? session.game?.sellItem(slot) : store.set({ shop: true }))}
+              {...tipProps(() =>
+                item ? <ItemTip item={item} slot={slot} canShop={shopOpen && hero.canShop} /> : <TextTip title="Empty slot" text="Buy items for your hero at the shop while it stands near one of your town centers." />,
+              )}
+            >
+              {item && <Icon id={item.id} />}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        className={`btn btn-small shop-button ${shopOpen ? "active" : ""} ${hero.canShop ? "at-shop" : ""}`}
+        onClick={() => store.set({ shop: !shopOpen })}
+        {...tipProps(() => <TextTip title="Hero shop" hotkey="P" text="Buy items that make your hero stronger. Your hero must stand near one of your town centers to trade; items stay through death." />)}
+      >
+        <Icon id="shop" /> Shop
+      </button>
     </div>
   );
 }

@@ -11,4 +11,5 @@ public sealed class GameContent
     public List<RaceDef> Races { get; set; } = [];
     public List<AbilityDef> Abilities { get; set; } = [];
     public List<HeroStatDef> HeroStats { get; set; } = [];
+    public List<ItemDef> Items { get; set; } = [];
 }

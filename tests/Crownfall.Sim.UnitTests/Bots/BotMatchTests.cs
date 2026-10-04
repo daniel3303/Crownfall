@@ -80,7 +80,7 @@ public class BotMatchTests
         results.Count(r => r.HardWon && r.Knockout).Should().BeGreaterThanOrEqualTo(6, "Hard should win most games outright, not only outscore Easy at the cap");
     }
 
-    [Fact(Skip = "Brutal wins about 45% of 40 seeded duels against Hard; re-enable once bot hero combat is reworked and Brutal re-tuned.")]
+    [Fact(Skip = "Brutal wins about half of 40 seeded duels against Hard; re-enable once Brutal has an edge that measures.")]
     public void BotMatch_BrutalAgainstHard_BrutalWinsMostSeeds()
     {
         var seeds = Enumerable.Range(1, 20).ToList();

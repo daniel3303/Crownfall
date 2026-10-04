@@ -6,7 +6,8 @@ namespace Crownfall.Sim.Bots;
 
 /// <summary>
 /// Bot army: trains the planned mix, defends the base and villagers, and attacks only when its power beats what it knows
-/// of the enemy by the profile's margin. Attacks gather at a staging point first and fall back when the fight turns.
+/// of the enemy by the profile's margin. Attacks stage, regroup when strung out and fall back when the fight turns, and
+/// between attacks a strong enough army slays the dragon.
 /// </summary>
 public sealed class BotMilitary
 {
@@ -27,6 +28,22 @@ public sealed class BotMilitary
     // After a retreat the army attacks again only once it is this much stronger, or after the profile's regroup time.
     private const float RegroupGrowth = 1.3f;
 
+    // A wave with fewer than this share near its centroid gathers there before going on, until the gathered share is met.
+    private const float StrungOutFraction = 0.6f;
+
+    // Enemy fighters this far past the local radius already count as met, so the wave fights rather than regroups.
+    private const float ContactMargin = 4f;
+
+    // A regroup gives up after this long, and the next may start only after the same time again.
+    private const int RegroupTimeoutTicks = 120;
+
+    // A dragon fight gives up after this long, and the army leaves it once losses pass this multiple of what it expected.
+    private const int SlayTimeoutTicks = 900;
+    private const float SlayLossOverrun = 2f;
+
+    // After a dragon fight ends, won or not, the army waits this long before trying again.
+    private const int SlayCooldownTicks = 900;
+
     private readonly Game _game;
     private readonly Player _player;
     private readonly BotProfile _profile;
@@ -42,6 +59,10 @@ public sealed class BotMilitary
     private Vector2? _detour;
     private int _retreatTick = -100000;
     private float _retreatPower;
+    private int _regroupTick = -100000;
+    private bool _regrouping;
+    private float _slayBudget;
+    private int _slayEndTick = -100000;
 
     public BotMilitary(Game game, Player player, BotProfile profile, BotCombatModel model, BotMemory memory, BotArmyComposer composer)
     {
@@ -96,6 +117,9 @@ public sealed class BotMilitary
             case BotMode.Retreating:
                 Retreat(view);
                 break;
+            case BotMode.Slaying:
+                Slay(view);
+                break;
             default:
                 Build(view);
                 break;
@@ -105,15 +129,98 @@ public sealed class BotMilitary
     private void Build(BotView view)
     {
         var rally = Rally(view);
-        var stragglers = view.Army.Where(u => u.Order.Type == OrderType.Idle && Vector2.Distance(u.Position, rally) > StragglerDistance).ToList();
-        Order(stragglers, rally, attackMove: true);
-        if (!ShouldAttack(view, out var objective, out var building))
+        if (!SettleFight(view, rally))
         {
             return;
         }
-        Objective = objective;
-        _objectiveBuilding = building;
-        Enter(BotMode.Staging, view);
+        var stragglers = view.Army.Where(u => u.Order.Type == OrderType.Idle && Vector2.Distance(u.Position, rally) > StragglerDistance).ToList();
+        Order(stragglers, rally, attackMove: true);
+        if (ShouldAttack(view, out var objective, out var building))
+        {
+            Objective = objective;
+            _objectiveBuilding = building;
+            Enter(BotMode.Staging, view);
+            return;
+        }
+        if (ShouldSlay(view))
+        {
+            Objective = _game.Layout.Lair;
+            _objectiveBuilding = 0;
+            StartWave(view);
+            Enter(BotMode.Slaying, view);
+        }
+    }
+
+    /// <summary>
+    /// Soldiers still fighting away from the rally once a defense ends keep fighting with the wave's micro while they hold
+    /// and fall back together once they are losing, rather than brawling on unled. False when they fall back.
+    /// </summary>
+    private bool SettleFight(BotView view, Vector2 rally)
+    {
+        var engaged = view.Army.Where(u => u.Order is { Type: OrderType.Attack, Target.Owner: not null } && Vector2.Distance(u.Position, rally) > StragglerDistance).ToList();
+        if (engaged.Count == 0)
+        {
+            return true;
+        }
+        if (IsLosingLocally(view, engaged))
+        {
+            BeginRetreat(view);
+            return false;
+        }
+        _micro.Fight(view, engaged, Centroid(engaged), 0);
+        return true;
+    }
+
+    /// <summary>
+    /// Slay the dragon while it is up and the army, with a fit hero, is expected to lose no more than the profile's share
+    /// of itself bringing it down from its last seen health. Never while regrouping or soon after the last attempt.
+    /// </summary>
+    private bool ShouldSlay(BotView view)
+    {
+        if (_profile.DragonLossShare <= 0 || !_memory.DragonUp || view.Army.Count < _profile.MinAttackArmy || _game.Content.DragonUnit == null)
+        {
+            return false;
+        }
+        if (view.Tick - _slayEndTick < SlayCooldownTicks || IsRegrouping(view, OwnPower(view)))
+        {
+            return false;
+        }
+        var group = Group(view, view.Army);
+        var losses = _model.SlayLosses(group, _game.Content.DragonUnit, _memory.DragonHp, view.Tick);
+        _slayBudget = _profile.DragonLossShare * group.Count;
+        return losses <= _slayBudget;
+    }
+
+    /// <summary>
+    /// Marches the wave on the lair and sets every soldier and a fit hero on the dragon once it is in sight. Once it falls the
+    /// army goes back to building; a fight that drags on, turns against the wave or costs far more than expected is a retreat.
+    /// </summary>
+    private void Slay(BotView view)
+    {
+        var wave = view.Army.Where(u => _wave.Contains(u.Id)).ToList();
+        if (!_memory.DragonUp)
+        {
+            Enter(BotMode.Building, view);
+            return;
+        }
+        var dragging = view.Tick - _modeTick >= SlayTimeoutTicks;
+        if (dragging || wave.Count == 0 || _waveStartCount - wave.Count > SlayLossOverrun * _slayBudget || IsLosingLocally(view, wave))
+        {
+            BeginRetreat(view);
+            return;
+        }
+        var group = Group(view, wave);
+        var dragon = view.Creeps.FirstOrDefault(c => c.Camp is { IsLair: true });
+        if (dragon == null)
+        {
+            Order(group.Where(u => !IsMovingTo(u, Objective)).ToList(), Objective, attackMove: true);
+            return;
+        }
+        var idle = group.Where(u => u.Order.Type != OrderType.Attack || u.Order.Target != dragon).Select(u => u.Id).ToList();
+        if (idle.Count > 0)
+        {
+            _game.Commands.Apply(_player, new AttackCommand { Units = idle, Target = dragon.Id });
+        }
     }
 
     /// <summary>Attack when own power beats known enemy power plus the defenses at the objective by the profile margin.</summary>
@@ -131,9 +238,14 @@ public sealed class BotMilitary
             return false;
         }
         var own = OwnPower(view);
-        var regrouping = view.Tick - _retreatTick < _profile.RegroupSeconds * _game.Content.Rules.TickRate && own < _retreatPower * RegroupGrowth;
         var enemy = _memory.EnemyEstimate(view.Tick) + _memory.DefensePowerNear(objective, LocalRadius);
-        return maxed || !regrouping && own >= _profile.AttackMargin * enemy;
+        return maxed || !IsRegrouping(view, own) && own >= _profile.AttackMargin * enemy;
+    }
+
+    /// <summary>True for a while after a retreat, until the army has grown well past what it fell back with.</summary>
+    private bool IsRegrouping(BotView view, float own)
+    {
+        return view.Tick - _retreatTick < _profile.RegroupSeconds * _game.Content.Rules.TickRate && own < _retreatPower * RegroupGrowth;
     }
 
     private void Stage(BotView view)
@@ -148,12 +260,18 @@ public sealed class BotMilitary
         var gathered = view.Army.Count(u => Vector2.Distance(u.Position, staging) <= GatheredRadius);
         if (gathered >= GatheredFraction * view.Army.Count || view.Tick - _modeTick >= StagingTimeoutTicks)
         {
-            _wave.Clear();
-            _wave.UnionWith(view.Army.Select(u => u.Id));
-            _waveStartCount = _wave.Count;
+            StartWave(view);
             _detour = _targeting.Detour(staging, Objective);
             Enter(BotMode.Attacking, view);
         }
+    }
+
+    private void StartWave(BotView view)
+    {
+        _wave.Clear();
+        _wave.UnionWith(view.Army.Select(u => u.Id));
+        _waveStartCount = _wave.Count;
+        _regrouping = false;
     }
 
     private void Attack(BotView view)
@@ -186,7 +304,37 @@ public sealed class BotMilitary
         }
         var heading = _detour ?? Objective;
         var advance = Vector2.Distance(centroid, heading) > StepDistance ? BotBuilder.Toward(centroid, heading, StepDistance) : heading;
-        _micro.Fight(wave, advance, _detour.HasValue ? 0 : _objectiveBuilding);
+        if (ShouldRegroup(view, wave, centroid))
+        {
+            advance = centroid;
+        }
+        _micro.Fight(view, wave, advance, _detour.HasValue ? 0 : _objectiveBuilding);
+    }
+
+    /// <summary>
+    /// True while a wave strung out on the march should gather on its centroid: from when too few soldiers are near it
+    /// until most are, never once enemies are met, and never past the regroup timeout.
+    /// </summary>
+    private bool ShouldRegroup(BotView view, List<Unit> wave, Vector2 centroid)
+    {
+        if (!_profile.KeepWaveTogether || wave.Count == 0)
+        {
+            return false;
+        }
+        var near = wave.Count(u => Vector2.Distance(u.Position, centroid) <= GatheredRadius) / (float)wave.Count;
+        var met = view.EnemyUnits.Any(u => (u.Def.IsMilitary || u.IsHero) && Vector2.Distance(u.Position, centroid) <= LocalRadius + ContactMargin)
+            || view.EnemyBuildings.Any(b => b.Stats.Attack != null && b.EdgeDistance(centroid) <= b.Stats.Attack.Range + ContactMargin);
+        if (met || near >= GatheredFraction || _regrouping && view.Tick - _regroupTick >= RegroupTimeoutTicks)
+        {
+            _regrouping = false;
+            return false;
+        }
+        if (!_regrouping && near < StrungOutFraction && view.Tick - _regroupTick >= 2 * RegroupTimeoutTicks)
+        {
+            _regrouping = true;
+            _regroupTick = view.Tick;
+        }
+        return _regrouping;
     }
 
     private void BeginRetreat(BotView view)
@@ -202,16 +350,22 @@ public sealed class BotMilitary
         Order(retreating, Rally(view), attackMove: false);
     }
 
-    /// <summary>Retreat when visible enemy soldiers and defenses near the wave outweigh it by the profile's ratio.</summary>
+    /// <summary>
+    /// Retreat when visible enemy soldiers and defenses near the wave outweigh it by the profile's ratio. Heroes count by
+    /// <see cref="BotCombatModel.LocalPower"/>, so only area abilities that kill soldiers outright weigh in full, and a hero
+    /// alone never turns a wave back: it outruns soldiers, so fleeing it only hands it free kills.
+    /// </summary>
     private bool IsLosingLocally(BotView view, List<Unit> wave)
     {
         var front = Centroid(wave);
         var enemy = 0f;
+        var backed = false;
         foreach (var unit in view.EnemyUnits)
         {
             if ((unit.Def.IsMilitary || unit.IsHero) && Vector2.Distance(unit.Position, front) <= LocalRadius)
             {
-                enemy += _model.Power(unit);
+                enemy += _model.LocalPower(unit);
+                backed |= !unit.IsHero;
             }
         }
         foreach (var building in view.EnemyBuildings)
@@ -219,10 +373,11 @@ public sealed class BotMilitary
             if (building.IsComplete && building.Stats.Attack != null && building.EdgeDistance(front) <= building.Stats.Attack.Range + 2)
             {
                 enemy += _model.DefensePower(building.Def);
+                backed = true;
             }
         }
-        var own = wave.Where(u => Vector2.Distance(u.Position, front) <= LocalRadius).Sum(_model.Power);
-        return enemy > 0 && enemy > _profile.RetreatRatio * own;
+        var own = wave.Where(u => Vector2.Distance(u.Position, front) <= LocalRadius).Sum(_model.LocalPower);
+        return backed && enemy > _profile.RetreatRatio * own;
     }
 
     /// <summary>An objective stands while it is a remembered building, or an unexplored point not yet reached.</summary>
@@ -268,7 +423,7 @@ public sealed class BotMilitary
             Order(defenders.Where(u => Vector2.Distance(u.Position, rally) > GatheredRadius && !IsMovingTo(u, rally)).ToList(), rally, attackMove: false);
             return;
         }
-        _micro.Fight(defenders, threat.Center, 0);
+        _micro.Fight(view, defenders, threat.Center, 0);
     }
 
     /// <summary>Points every barracks' rally at the gathering spot so new soldiers assemble on their own.</summary>
@@ -286,12 +441,27 @@ public sealed class BotMilitary
 
     private void Enter(BotMode mode, BotView view)
     {
+        if (Mode == BotMode.Slaying && mode != BotMode.Slaying)
+        {
+            _slayEndTick = view.Tick;
+        }
         Mode = mode;
         _modeTick = view.Tick;
         if (mode is BotMode.Building or BotMode.Retreating)
         {
             _wave.Clear();
         }
+    }
+
+    /// <summary>The given soldiers plus the hero when it is fit to fight.</summary>
+    private List<Unit> Group(BotView view, List<Unit> soldiers)
+    {
+        var group = new List<Unit>(soldiers);
+        if (IsFit(view.Hero))
+        {
+            group.Add(view.Hero);
+        }
+        return group;
     }
 
     private float OwnPower(BotView view)

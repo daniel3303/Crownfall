@@ -51,6 +51,16 @@ import {
   ShoppingCart,
   Sparkles,
   Zap,
+  BicepsFlexed,
+  Droplets,
+  Gem,
+  HandFist,
+  Heart,
+  Hourglass,
+  ShieldPlus,
+  Shirt,
+  Store,
+  Timer,
 } from "lucide-react";
 import { content } from "../content/content";
 import { onPortraits, portraitUrl } from "../render/portrait-store";
@@ -111,6 +121,21 @@ const ICONS: Record<string, LucideIcon> = {
   gate: DoorOpen,
   wallTower: BrickWallShield,
   stoneWall: BrickWall,
+  ironSword: Sword,
+  leatherArmor: Shirt,
+  vitalityCharm: Heart,
+  swiftBoots: Footprints,
+  regenRing: Gem,
+  hasteGloves: HandFist,
+  vampireFang: Droplets,
+  sageTalisman: Hourglass,
+  plateArmor: ShieldPlus,
+  warlordBlade: Swords,
+  shop: Store,
+  cooldown: Timer,
+  dragon: Flame,
+  dragonBuff: BicepsFlexed,
+  streak: Skull,
 };
 
 /** A line icon for a unit, building, resource or ability id, coloured by its `icon-<id>` class; sized by font size. */

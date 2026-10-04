@@ -282,6 +282,17 @@ export class GameView {
     this.issue({ type: "reviveHero", building });
   }
 
+  /** Buys an item for the hero; the server checks it stands at a town center and can pay. */
+  buyItem(item: string): void {
+    this.issue({ type: "buyItem", item });
+    audio.play("coin");
+  }
+
+  sellItem(slot: number): void {
+    this.issue({ type: "sellItem", slot });
+    audio.play("coin");
+  }
+
   train(unit: string): void {
     const building = this.selectedOwnBuilding();
     if (building) this.issue({ type: "train", building: building.id, unit });

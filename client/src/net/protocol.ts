@@ -156,7 +156,7 @@ export interface HeroStats {
   /** Share of basic-attack damage healed back, 0 to 1. */
   lifeSteal: number;
   sight: number;
-  /** Hp per second while resting. */
+  /** Hp per second: items always, plus resting regeneration while untouched. */
   regen: number;
   regenerating: boolean;
 }
@@ -178,7 +178,24 @@ export interface HeroState {
   /** Down, cooldown over and a completed town center stands; affordability is checked against the stock. */
   canRevive: boolean;
   reviveCost: number[];
+  /** Item id per inventory slot, null where empty. */
+  items: (string | null)[];
+  /** The living hero stands near an own completed town center, where items are traded. */
+  canShop: boolean;
+  /** Enemy heroes slain since it last died. */
+  streak: number;
+  /** What ability cooldowns are multiplied by now, from level and items. */
+  cooldownFactor: number;
   stats: HeroStats;
+}
+
+/** The center dragon's timer and your team's buff from slaying it. */
+export interface DragonState {
+  isUp: boolean;
+  /** Seconds until it lands; 0 while up. */
+  landsInSeconds: number;
+  /** Seconds your attack buff has left; 0 without one. */
+  buffSeconds: number;
 }
 
 export interface ProductionState {
@@ -200,6 +217,8 @@ export interface StateMessage {
   population: number;
   populationCap: number;
   hero: HeroState;
+  /** Absent when the rules have no dragon. */
+  dragon?: DragonState;
   production: ProductionState[];
   players: PlayerView[];
 }
@@ -222,7 +241,11 @@ export type GameEvent =
   | { k: "defeat"; player: number; name: string }
   | { k: "completed"; player: number; id: number; what: string }
   | { k: "upgraded"; player: number; team: number; id: number; what: string; level: number; x: number; y: number }
-  | { k: "impact"; team: number; x: number; y: number; radius: number };
+  | { k: "impact"; team: number; x: number; y: number; radius: number }
+  | { k: "announce"; type: AnnouncementType; title: string; text: string; player: number; team: number; x: number; y: number };
+
+/** Match-wide calls every player hears; player and team are -1 when no one owns one. */
+export type AnnouncementType = "firstBlood" | "killStreak" | "shutdown" | "dragonSpawned" | "dragonSlain";
 
 export interface EventsMessage {
   t: "events";
@@ -304,4 +327,6 @@ export type Command =
   | { type: "reviveHero"; building: number }
   | { type: "upgrade"; building: number }
   | { type: "cancelUpgrade"; building: number }
-  | { type: "trade"; building: number; resource: string; buy: boolean };
+  | { type: "trade"; building: number; resource: string; buy: boolean }
+  | { type: "buyItem"; item: string }
+  | { type: "sellItem"; slot: number };
