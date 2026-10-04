@@ -8,7 +8,8 @@ namespace Crownfall.Sim.Bots;
 /// <summary>
 /// Bot hero: casts its kit's abilities when they hit several enemies, or the dragon while the army slays it, heals once
 /// enough allied health is missing, supports an attack from behind once badly hurt, blinking clear of a close enemy, and
-/// between attacks rests at home until healed, then explores around home and clears the camps it finds.
+/// between attacks rests at home until healed, then explores around home and clears the camps it finds. A roaming hero
+/// searches further, and once nothing is left to hunt it waits with the army.
 /// </summary>
 public sealed class BotHeroPilot
 {
@@ -16,6 +17,10 @@ public sealed class BotHeroPilot
     private const int MaxCreepingLevel = 7;
     private const float CampSearchRadius = 35f;
     private const float EnemyBaseClearance = 18f;
+
+    // A roaming hero hunts camps this far from home, all but those near an enemy base.
+    private const float RoamRadius = 60f;
+
     private const int RallyAllies = 3;
     private const float RallyEnemyReach = 2f;
     private const float HomeRadius = 5f;
@@ -35,6 +40,7 @@ public sealed class BotHeroPilot
     private const float HealWorth = 1.5f;
     private const int ExploreDirections = 8;
     private static readonly float[] ExploreRadii = [22f, 34f];
+    private static readonly float[] RoamRadii = [22f, 34f, 46f];
 
     private readonly Game _game;
     private readonly Player _player;
@@ -42,6 +48,8 @@ public sealed class BotHeroPilot
     private readonly BotMemory _memory;
     private readonly BotTargeting _targeting;
     private readonly List<Unit> _nearby = [];
+    private readonly HashSet<Vector2> _unreachable = [];
+    private Vector2? _exploring;
 
     public BotHeroPilot(Game game, Player player, BotProfile profile, BotMemory memory)
     {
@@ -52,18 +60,28 @@ public sealed class BotHeroPilot
         _targeting = new BotTargeting(game, memory);
     }
 
-    /// <summary>One think for the hero; <paramref name="wantsShop"/> sends an idle hero home to buy its next item.</summary>
-    public void Run(BotView view, BotMode mode, bool wantsShop)
+    /// <summary>
+    /// One think for the hero; <paramref name="wantsShop"/> sends an idle hero home to buy its next item, and a roaming hero
+    /// with nothing to do waits at <paramref name="rally"/>.
+    /// </summary>
+    public void Run(BotView view, BotMode mode, bool wantsShop, Vector2 rally)
     {
         var hero = view.Hero;
         if (hero is not { IsAlive: true })
         {
+            _exploring = null;
             return;
         }
         UseAbilities(hero, view, mode);
+        if (mode != BotMode.Building || hero.Dash != null)
+        {
+            // Only an explore walk the hero ends on its own counts against the point; a charge idles it mid-walk.
+            _exploring = null;
+        }
         if (mode != BotMode.Slaying && hero.Order.Target is Unit { Owner: null } creep && creep.Def.HasTag("boss"))
         {
             // A boss outlasts any early hero; walking off ends the fight, since creeps leash back to their camp.
+            _exploring = null;
             Move(hero, view.Home, attackMove: false);
             return;
         }
@@ -72,10 +90,16 @@ public sealed class BotHeroPilot
             StayBack(hero, view);
             return;
         }
-        if (mode == BotMode.Building && hero.Order.Type == OrderType.Idle && !Rest(hero, view) && !GoShopping(hero, view, wantsShop) && !HuntCamp(hero, view))
+        if (mode != BotMode.Building || hero.Order.Type != OrderType.Idle)
         {
-            Explore(hero, view);
+            return;
         }
+        if (Rest(hero, view) || GoShopping(hero, view, wantsShop) || HuntCamp(hero, view))
+        {
+            _exploring = null;
+            return;
+        }
+        Explore(hero, view, rally);
     }
 
     /// <summary>A hurt hero walks home and stays out of fights, since it only regenerates while left undamaged.</summary>
@@ -327,15 +351,21 @@ public sealed class BotHeroPilot
         return true;
     }
 
-    /// <summary>Clears the nearest known camp while creeps still pay experience worth the trip.</summary>
+    /// <summary>
+    /// Clears the nearest known camp while creeps still pay experience worth the trip; past that level a roaming hero
+    /// keeps exploring and then waits at the rally; other heroes stay where they stand.
+    /// </summary>
     private bool HuntCamp(Unit hero, BotView view)
     {
         if (_player.HeroState.Level >= MaxCreepingLevel)
         {
-            return true;
+            // Claiming the think keeps other heroes where they stand; a roaming hero falls through to explore.
+            return !_profile.HeroRoams;
         }
+        var reach = _profile.HeroRoams ? RoamRadius : CampSearchRadius;
         var camp = _memory.Camps
-            .Where(c => !c.HasBoss && _memory.IsCampLikelyAlive(c, view.Tick) && Vector2.Distance(c.Center, view.Home) <= CampSearchRadius)
+            .Where(c => !c.HasBoss && _memory.IsCampLikelyAlive(c, view.Tick) && Vector2.Distance(c.Center, view.Home) <= reach)
+            .Where(c => !_profile.HeroRoams || !NearEnemyBase(c.Center))
             .OrderBy(c => Vector2.Distance(c.Center, hero.Position))
             .ThenBy(c => c.Id)
             .FirstOrDefault();
@@ -349,11 +379,18 @@ public sealed class BotHeroPilot
 
     /// <summary>
     /// Walks to the nearest unexplored point on a ring around home, inner ring first; this is how the hero finds camps
-    /// to clear and the economy finds deposits beyond the base.
+    /// to clear and the economy finds deposits beyond the base. A roaming hero also searches a wider ring, drops points
+    /// it stopped short of, and with none left walks to <paramref name="rally"/>.
     /// </summary>
-    private void Explore(Unit hero, BotView view)
+    private void Explore(Unit hero, BotView view, Vector2 rally)
     {
-        foreach (var radius in ExploreRadii)
+        if (_profile.HeroRoams && _exploring is { } target && IsUnexplored(target))
+        {
+            // The hero went idle on its way there and the point is still unexplored: trees hide it or bar the path.
+            _unreachable.Add(target);
+        }
+        _exploring = null;
+        foreach (var radius in _profile.HeroRoams ? RoamRadii : ExploreRadii)
         {
             Vector2? best = null;
             var bestDistance = float.MaxValue;
@@ -362,7 +399,7 @@ public sealed class BotHeroPilot
                 var (sin, cos) = MathF.SinCos(i * MathF.Tau / ExploreDirections);
                 var point = view.Home + new Vector2(cos, sin) * radius;
                 var distance = Vector2.Distance(point, hero.Position);
-                if (IsUnexplored(point) && distance < bestDistance && !_targeting.NearBoss(point) && !NearEnemyBase(point))
+                if (IsUnexplored(point) && distance < bestDistance && !_targeting.NearBoss(point) && !NearEnemyBase(point) && !_unreachable.Contains(point))
                 {
                     bestDistance = distance;
                     best = point;
@@ -370,9 +407,14 @@ public sealed class BotHeroPilot
             }
             if (best.HasValue)
             {
+                _exploring = best;
                 Move(hero, best.Value, attackMove: true);
                 return;
             }
+        }
+        if (_profile.HeroRoams && Vector2.Distance(hero.Position, rally) > HomeRadius)
+        {
+            Move(hero, rally, attackMove: true);
         }
     }
 

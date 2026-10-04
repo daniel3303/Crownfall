@@ -80,10 +80,12 @@ public class BotMatchTests
         results.Count(r => r.HardWon && r.Knockout).Should().BeGreaterThanOrEqualTo(6, "Hard should win most games outright, not only outscore Easy at the cap");
     }
 
-    [Fact(Skip = "Brutal wins about half of 40 seeded duels against Hard; re-enable once Brutal has an edge that measures.")]
+    [Fact]
     public void BotMatch_BrutalAgainstHard_BrutalWinsMostSeeds()
     {
-        var seeds = Enumerable.Range(1, 20).ToList();
+        // Brutal wins 288 of 400 other seeds, so a fair draw of 60 at that rate falls below 37 about 3% of the time, while a
+        // bot only as good as Hard reaches 37 about 5% of the time.
+        var seeds = Enumerable.Range(1, 60).ToList();
         var results = new (bool BrutalWon, string Line)[seeds.Count];
         Parallel.For(0, seeds.Count, i =>
         {
@@ -106,7 +108,7 @@ public class BotMatchTests
             _output.WriteLine(result.Line);
         }
 
-        results.Count(r => r.BrutalWon).Should().BeGreaterThanOrEqualTo(11, "Brutal should beat Hard in most seeds");
+        results.Count(r => r.BrutalWon).Should().BeGreaterThanOrEqualTo(37, "Brutal should beat Hard in clearly more than half the seeds");
     }
 
     [Fact]

@@ -82,6 +82,18 @@ public sealed class BotProfile
     /// <summary>Option index the hero takes in each talent tier; a tier past the list takes the first option.</summary>
     public int[] TalentPicks { get; init; } = [];
 
+    /// <summary>
+    /// The hero hunts camps across the map away from enemy bases, drops explore points it cannot reach, and with nothing left
+    /// to hunt waits at the rally, where the army's fights pay it experience.
+    /// </summary>
+    public bool HeroRoams { get; init; }
+
+    /// <summary>Hero level the army waits for before it attacks, so early waves do not feed the enemy hero; 0 never waits.</summary>
+    public int AttackHeroLevel { get; init; }
+
+    /// <summary>Seconds into the match after which the army attacks whatever its hero's level; 0 waits for the level however long.</summary>
+    public int AttackHeroDeadlineSeconds { get; init; }
+
     /// <summary>Extra share of every deposit the bot banks, villager loads and hero bounties alike; 0 for a fair economy. The bonus never counts toward Stats.Gathered, so end-screen figures show only what was really gathered.</summary>
     public float GatherBonus { get; init; }
 
@@ -172,8 +184,9 @@ public sealed class BotProfile
                 StrikeTargets = 3,
                 TalentPicks = [1, 1, 1],
             },
-            // Hard's judgment with faster reactions, earlier attacks and a bonus-fed economy. In bot duels it does not beat
-            // Hard yet (19 of 40 seeds); income, tempo and hero experience bonuses all measured as noise.
+            // Hard's judgment plus a hero-first plan: the hero roams for camps and fights beside the army, attacks wait up to
+            // twelve minutes for its ultimate at level 6, and the dragon is worth heavier losses. With faster reactions and a
+            // bonus-fed economy on top it beats Hard in about seven duels in ten, as often without the bonus.
             BotDifficulty.Brutal => new BotProfile
             {
                 ThinkTicks = 3,
@@ -210,8 +223,11 @@ public sealed class BotProfile
                 StrikeTargets = 3,
                 RespectAreaAbilities = true,
                 KeepWaveTogether = true,
-                DragonLossShare = 0.3f,
+                DragonLossShare = 0.5f,
                 ItemBudget = 800,
+                HeroRoams = true,
+                AttackHeroLevel = 6,
+                AttackHeroDeadlineSeconds = 720,
                 GatherBonus = 0.3f,
                 TalentPicks = [1, 1, 1],
             },

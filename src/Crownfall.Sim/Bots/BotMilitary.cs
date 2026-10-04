@@ -223,13 +223,17 @@ public sealed class BotMilitary
         }
     }
 
-    /// <summary>Attack when own power beats known enemy power plus the defenses at the objective by the profile margin.</summary>
+    /// <summary>
+    /// Attack when own power beats known enemy power plus the defenses at the objective by the profile margin, once the army
+    /// and the hero have grown to the profile's minimums or the hero deadline has passed; a maxed population attacks regardless.
+    /// </summary>
     private bool ShouldAttack(BotView view, out Vector2 objective, out int building)
     {
         objective = default;
         building = 0;
         var maxed = _player.Population >= _game.Content.Rules.PopulationLimit - 3;
-        if (view.Army.Count < _profile.MinAttackArmy && !maxed)
+        var ready = view.Army.Count >= _profile.MinAttackArmy && HeroReady(view);
+        if (!ready && !maxed)
         {
             return false;
         }
@@ -480,7 +484,18 @@ public sealed class BotMilitary
         return units.Sum(_model.Power);
     }
 
-    private Vector2 Rally(BotView view)
+    /// <summary>
+    /// The hero has reached the profile's attack level, or the profile's deadline has passed, so an enemy that denies the
+    /// hero experience cannot hold the army at home forever.
+    /// </summary>
+    private bool HeroReady(BotView view)
+    {
+        var deadline = _profile.AttackHeroDeadlineSeconds * _game.Content.Rules.TickRate;
+        return _player.HeroState.Level >= _profile.AttackHeroLevel || (deadline > 0 && view.Tick >= deadline);
+    }
+
+    /// <summary>Where soldiers gather between fights: a little way from home toward the map center.</summary>
+    public Vector2 Rally(BotView view)
     {
         return BotBuilder.Toward(view.Home, _game.MapCenter, RallyDistance);
     }

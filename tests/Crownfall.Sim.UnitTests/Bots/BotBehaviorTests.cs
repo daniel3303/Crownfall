@@ -49,6 +49,55 @@ public class BotBehaviorTests
         Army(game, bot).Should().HaveCountGreaterThanOrEqualTo(8, "the soldiers that came home should be the marching army");
     }
 
+    [Theory]
+    [InlineData(BotDifficulty.Hard, true)]
+    [InlineData(BotDifficulty.Brutal, false)]
+    public void Attack_LevelOneHeroBesideAReadyArmy_OnlyBrutalWaitsForItsHero(BotDifficulty difficulty, bool marches)
+    {
+        var game = ArmyAtRally(difficulty);
+        var bot = game.Players[0];
+        var home = game.TownCenter(bot).Position;
+
+        var marched = RunUntil(game, TestGames.Seconds(60), () => Vector2.Distance(Centroid(Army(game, bot)), home) > 25);
+
+        marched.Should().Be(marches, "Hard marches a ready army at once, Brutal holds it so early waves do not feed the enemy hero");
+    }
+
+    [Fact]
+    public void Attack_BrutalHeroReachesItsAttackLevel_ArmyMarches()
+    {
+        var game = ArmyAtRally(BotDifficulty.Brutal);
+        var bot = game.Players[0];
+        var home = game.TownCenter(bot).Position;
+        // Held back for a minute first, so the test sees the gate open rather than never close.
+        TestGames.Run(game, TestGames.Seconds(60));
+
+        bot.HeroState.Level = BotProfile.For(BotDifficulty.Brutal).AttackHeroLevel;
+        var marched = RunUntil(game, TestGames.Seconds(90), () => Vector2.Distance(Centroid(Army(game, bot)), home) > 25);
+
+        marched.Should().BeTrue("once the hero reaches the attack level the army marches on the enemy");
+    }
+
+    [Theory]
+    [InlineData(BotDifficulty.Hard, true)]
+    [InlineData(BotDifficulty.Brutal, false)]
+    public void Attack_LevelOneHeroAMinuteBeforeTheDeadline_BrutalWaitsOnlyUntilTheDeadline(BotDifficulty difficulty, bool marchesBefore)
+    {
+        var brutal = BotProfile.For(BotDifficulty.Brutal);
+        var deadline = TestGames.Seconds(brutal.AttackHeroDeadlineSeconds);
+        // An idle match keeps the hero at level 1 while the clock runs to a minute before Brutal's deadline.
+        var game = ArmyAtRally(difficulty, idleTicks: deadline - TestGames.Seconds(60));
+        var bot = game.Players[0];
+        var home = game.TownCenter(bot).Position;
+
+        var before = RunUntil(game, deadline - game.Tick, () => Vector2.Distance(Centroid(Army(game, bot)), home) > 25);
+        var after = before || RunUntil(game, TestGames.Seconds(60), () => Vector2.Distance(Centroid(Army(game, bot)), home) > 25);
+
+        before.Should().Be(marchesBefore, "Hard never waits for its hero, Brutal holds the army until the deadline");
+        after.Should().BeTrue("past the deadline the army marches whatever the hero's level");
+        bot.HeroState.Level.Should().BeLessThan(brutal.AttackHeroLevel, "only the deadline, not the hero, can have opened the gate");
+    }
+
     [Fact]
     public void Revive_HeroFallsWithJustItsReviveBanked_BotSpendsNoneOfItAndRevivesOnCooldown()
     {
@@ -353,6 +402,24 @@ public class BotBehaviorTests
         _output.WriteLine($"trained {Describe(trained)}");
         trained.GetValueOrDefault("knight").Should().BeGreaterThan(before.GetValueOrDefault("knight"));
         trained.Should().NotContainKey("berserker");
+    }
+
+    /// <summary>
+    /// A bot of the given difficulty, taking over after <paramref name="idleTicks"/> of an idle match, with fifteen spearmen
+    /// gathered a little way from home toward the map center.
+    /// </summary>
+    private static Game ArmyAtRally(BotDifficulty difficulty, int idleTicks = 0)
+    {
+        var game = TestGames.Create(seed: 3);
+        TestGames.Run(game, idleTicks);
+        var bot = game.Players[0];
+        TestGames.EnableBot(game, bot, difficulty);
+        var home = game.TownCenter(bot).Position;
+        for (var i = 0; i < 15; i++)
+        {
+            game.Spawn("spearman", bot, game.Walkable(BotBuilder.Toward(home, game.MapCenter, 6) + new Vector2(i % 5, i / 5)));
+        }
+        return game;
     }
 
     /// <summary>A Hard human bot with two barracks at the given level, houses and a full bank.</summary>

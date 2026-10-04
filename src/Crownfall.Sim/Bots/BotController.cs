@@ -106,7 +106,7 @@ public sealed class BotController
         _raids.Run(view, _guard.Threat.IsActive);
         _military.Run(view, _guard.Threat, _economy.ArmyReserve);
         _guard.Protect(view);
-        _heroPilot.Run(view, _military.Mode, _heroUpgrades.WantsShop);
+        _heroPilot.Run(view, _military.Mode, _heroUpgrades.WantsShop, _military.Rally(view));
     }
 
     /// <summary>Stores the whole part of the gather bonus owed; fractions carry over so no share is lost.</summary>
