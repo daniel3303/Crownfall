@@ -127,11 +127,11 @@ public sealed class BotMicro
         {
             return;
         }
-        var abilities = _game.Content.Abilities;
         var soon = (int)(AreaReadySeconds * _game.Content.Rules.TickRate);
         foreach (var hero in view.EnemyUnits.Where(u => u.IsHero && u.Hp > u.MaxHp * FinishHealth))
         {
             var level = hero.Hero.Level;
+            var abilities = hero.Def.Kit;
             for (var slot = 0; slot < abilities.Count; slot++)
             {
                 var ability = abilities[slot];

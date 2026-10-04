@@ -16,6 +16,9 @@ public enum AbilityEffect
     /// <summary>Delayed area damage at a target point.</summary>
     Strike,
 
-    /// <summary>The hero rushes to a target point, hitting and stunning enemies on the way.</summary>
+    /// <summary>The hero rushes to a target point, hitting and stunning enemies on the way; one without damage or stun only moves.</summary>
     Dash,
+
+    /// <summary>Instant healing for the hero and every allied unit around it.</summary>
+    Heal,
 }

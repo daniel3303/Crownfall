@@ -108,6 +108,8 @@ export interface SeatView {
   team: number;
   name: string;
   race: string;
+  /** The hero the seat will lead: a human's pick, or the one a bot drew from the seed. */
+  hero: string;
   isBot: boolean;
   isHost: boolean;
 }
@@ -117,6 +119,7 @@ export interface PlayerView {
   name: string;
   team: number;
   race: string;
+  hero: string;
   isBot: boolean;
   defeated: boolean;
   score: number;
@@ -184,6 +187,8 @@ export interface HeroState {
   canShop: boolean;
   /** Enemy heroes slain since it last died. */
   streak: number;
+  /** Picked talent id per tier, null where the tier is unpicked. */
+  talents: (string | null)[];
   /** What ability cooldowns are multiplied by now, from level and items. */
   cooldownFactor: number;
   stats: HeroStats;
@@ -257,6 +262,7 @@ export interface EndPlayer {
   index: number;
   name: string;
   team: number;
+  hero: string;
   isBot: boolean;
   score: number;
   gathered: number;
@@ -324,6 +330,7 @@ export type Command =
   | { type: "ability"; slot: number; x: number; y: number }
   | { type: "tribute"; to: number; resource: string; amount: number }
   | { type: "heroStat"; stat: string }
+  | { type: "pickTalent"; tier: number; talent: string }
   | { type: "reviveHero"; building: number }
   | { type: "upgrade"; building: number }
   | { type: "cancelUpgrade"; building: number }

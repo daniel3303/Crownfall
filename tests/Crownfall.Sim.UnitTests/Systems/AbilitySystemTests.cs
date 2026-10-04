@@ -32,7 +32,7 @@ public class AbilitySystemTests
         var (game, player, slot) = ChargeReady();
         var hero = player.Hero;
         var start = hero.Position;
-        var charge = game.Content.Abilities[slot];
+        var charge = player.HeroState.Kit[slot];
 
         game.Issue(player, new AbilityCommand { Slot = slot, X = start.X, Y = start.Y + 40 });
         TestGames.Run(game, 10);
@@ -62,7 +62,7 @@ public class AbilitySystemTests
     {
         var game = TestGames.Create();
         var player = game.Players[0];
-        var slot = ChargeSlot(game);
+        var slot = TestGames.Slot(player, "charge");
         var start = player.Hero.Position;
 
         game.Issue(player, new AbilityCommand { Slot = slot, X = start.X + 5, Y = start.Y });
@@ -75,7 +75,7 @@ public class AbilitySystemTests
     public void Cast_AtAHigherLevel_RechargesSooner()
     {
         var (game, player, slot) = ChargeReady();
-        var ability = game.Content.Abilities[slot];
+        var ability = player.HeroState.Kit[slot];
         var rules = game.Content.Rules;
         game.Heroes.AddXp(player, rules.HeroXpForLevel(ability.UnlockLevel + 5) - player.HeroState.Xp);
         var start = player.Hero.Position;
@@ -101,15 +101,10 @@ public class AbilitySystemTests
     {
         var game = TestGames.Create();
         var player = game.Players[0];
-        var slot = ChargeSlot(game);
-        game.Heroes.AddXp(player, game.Content.Rules.HeroXpForLevel(game.Content.Abilities[slot].UnlockLevel));
+        var slot = TestGames.Slot(player, "charge");
+        game.Heroes.AddXp(player, game.Content.Rules.HeroXpForLevel(player.HeroState.Kit[slot].UnlockLevel));
         player.Hero.Position = game.QuietSpot();
         game.Step([]);
         return (game, player, slot);
-    }
-
-    private static int ChargeSlot(Game game)
-    {
-        return game.Content.Abilities.ToList().FindIndex(a => a.Id == "charge");
     }
 }

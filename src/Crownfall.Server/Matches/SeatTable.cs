@@ -40,11 +40,15 @@ internal sealed class SeatTable
         return _seats.FirstOrDefault(s => s.Client == client);
     }
 
-    /// <summary>Seats a client in the open bot seat on the team with the fewest humans; the first human hosts.</summary>
-    public Seat Take(IMatchClient client, string name)
+    /// <summary>
+    /// Seats a client in the open bot seat on the team with the fewest humans, preferring one of
+    /// <paramref name="preferredRace"/> when the seat's race can no longer change; the first human hosts.
+    /// </summary>
+    public Seat Take(IMatchClient client, string name, string preferredRace = null)
     {
         var seat = _seats.Where(IsOpen)
             .OrderBy(s => _seats.Count(o => o.Team == s.Team && !o.IsBot))
+            .ThenBy(s => preferredRace == null || s.Race == preferredRace ? 0 : 1)
             .ThenBy(s => s.Index)
             .FirstOrDefault();
         if (seat == null)
@@ -62,13 +66,14 @@ internal sealed class SeatTable
     {
         seat.Client = null;
         seat.Name = seat.BotName;
+        seat.Hero = null;
         if (Host == seat)
         {
             Host = _seats.FirstOrDefault(s => !s.IsBot);
         }
     }
 
-    /// <summary>Moves a human into a bot seat on another team, keeping their name, race and host role.</summary>
+    /// <summary>Moves a human into a bot seat on another team, keeping their name, race, hero and host role.</summary>
     public void MoveToTeam(Seat seat, int team)
     {
         var target = _seats.FirstOrDefault(s => s.Team == team && s.IsBot);
@@ -79,9 +84,11 @@ internal sealed class SeatTable
         target.Client = seat.Client;
         target.Name = seat.Name;
         target.Race = seat.Race;
+        target.Hero = seat.Hero;
         var wasHost = Host == seat;
         seat.Client = null;
         seat.Name = seat.BotName;
+        seat.Hero = null;
         if (wasHost)
         {
             Host = target;

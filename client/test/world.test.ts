@@ -20,8 +20,8 @@ function welcome(): WelcomeMessage {
     tickRate: 10,
     tick: 0,
     players: [
-      { index: 0, name: "Me", team: 0, race: "humans", isBot: false, defeated: false, score: 0 },
-      { index: 1, name: "Foe", team: 1, race: "orcs", isBot: true, defeated: false, score: 0 },
+      { index: 0, name: "Me", team: 0, race: "humans", hero: "paladin", isBot: false, defeated: false, score: 0 },
+      { index: 1, name: "Foe", team: 1, race: "orcs", hero: "warchief", isBot: true, defeated: false, score: 0 },
     ],
     map: { width: SIZE, height: SIZE, tiles: Buffer.from(tiles).toString("base64") },
   };

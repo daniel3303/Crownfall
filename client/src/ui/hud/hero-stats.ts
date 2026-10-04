@@ -49,7 +49,7 @@ export function heroStatRows(hero: HeroState): HeroStatRow[] {
       label: "Attack",
       value: round1(s.attack),
       bonus: rankBonus(hero, "attackDamage"),
-      tip: "Damage of each basic attack, before the target's armor. Levels, Attack Damage ranks and items raise it.",
+      tip: "Damage of each basic attack, before the target's armor. Levels, Attack Damage ranks, items, talents and attack buffs raise it.",
     },
     {
       id: "attackSpeed",
@@ -57,15 +57,15 @@ export function heroStatRows(hero: HeroState): HeroStatRow[] {
       label: "Attack speed",
       value: `${(1 / Math.max(0.01, s.cooldown)).toFixed(2)}/s`,
       bonus: rankBonus(hero, "attackSpeed"),
-      tip: `Basic attacks per second (one every ${s.cooldown.toFixed(2)} s). Attack Speed ranks, items and Rally add up.`,
+      tip: `Basic attacks per second (one every ${s.cooldown.toFixed(2)} s). Attack Speed ranks, items, talents and buffs add up.`,
     },
     {
       id: "maxHealth",
       icon: "maxHealth",
       label: "Health",
-      value: `${Math.ceil(s.hp)}/${Math.round(s.maxHp)}`,
+      value: `${Math.ceil(s.hp)}/${Math.ceil(s.maxHp)}`,
       bonus: rankBonus(hero, "maxHealth"),
-      tip: "Current and maximum health. Levels, Max Health ranks and items raise the maximum.",
+      tip: "Current and maximum health. Levels, Max Health ranks, items and talents raise the maximum.",
     },
     {
       id: "regen",
@@ -79,7 +79,7 @@ export function heroStatRows(hero: HeroState): HeroStatRow[] {
       icon: "armor",
       label: "Armor",
       value: `${s.armorMelee}/${s.armorPierce}`,
-      tip: "Melee / ranged armor: subtracted from every hit of that kind. Armor items add to it.",
+      tip: "Melee / ranged armor: subtracted from every hit of that kind. Armor items, talents and warding buffs add to it.",
     },
     {
       id: "moveSpeed",
@@ -87,14 +87,14 @@ export function heroStatRows(hero: HeroState): HeroStatRow[] {
       label: "Speed",
       value: round1(s.speed),
       bonus: rankBonus(hero, "moveSpeed"),
-      tip: "Tiles per second. Movement Speed ranks, items and Rally add up.",
+      tip: "Tiles per second. Movement Speed ranks, items, talents and buffs add up.",
     },
     {
       id: "lifeSteal",
       icon: "lifeSteal",
       label: "Life steal",
       value: percent(s.lifeSteal),
-      tip: "Share of basic-attack damage dealt that heals your hero. Life Steal ranks and items give it.",
+      tip: "Share of basic-attack damage dealt that heals your hero. Life Steal ranks, items and talents give it.",
     },
     {
       id: "sight",

@@ -28,6 +28,10 @@ internal static class MatchSetup
         {
             throw new ArgumentException("Every seat needs a known race.", nameof(setups));
         }
+        if (setups.Any(s => s.Hero != null && content.Race(s.Race).FindHero(s.Hero) == null))
+        {
+            throw new ArgumentException("Every picked hero must belong to its seat's race.", nameof(setups));
+        }
     }
 
     /// <summary>One player per seat; under Shared sharing every teammate holds the same Stockpile instance.</summary>
@@ -55,11 +59,16 @@ internal static class MatchSetup
                 BotDifficulty = config.Difficulty,
                 Stock = stock,
                 Start = layout.Starts.First(s => s.Team == setup.Team && s.Slot == slot),
-                HeroState = new HeroState(race.HeroUnit, content.Abilities.Count, content.HeroStats, content.Rules.HeroInventorySlots),
+                HeroState = NewHeroState(content, setup.Hero == null ? race.HeroUnit : race.FindHero(setup.Hero)),
                 MarketPrices = (float[])content.MarketBasePrices.Clone(),
             });
         }
         return players;
+    }
+
+    public static HeroState NewHeroState(ContentDb content, UnitDef hero)
+    {
+        return new HeroState(hero, content.HeroStats, content.Rules.HeroInventorySlots, content.Rules.HeroTalentLevels);
     }
 
     /// <summary>Spawns deposits, each player's town center, villagers and hero, then the creep camps and the empty dragon lair.</summary>

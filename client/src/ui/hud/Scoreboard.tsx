@@ -1,6 +1,7 @@
 import { playerColor, teamColor, TEAM_NAMES } from "../palette";
 import { useHud } from "../store";
-import { Icon } from "../icons";
+import { content } from "../../content/content";
+import { Icon, Portrait } from "../icons";
 import { bannerStyle, OwnFlair, useLook } from "../meta/cosmetics";
 
 export function Scoreboard() {
@@ -25,6 +26,11 @@ export function Scoreboard() {
                 style={p.index === match.you ? bannerStyle(look.banner) : undefined}
               >
                 <span style={{ color: playerColor(stats.players, p.index) }}>●</span>
+                {p.hero && (
+                  <span className="score-hero" title={content.units.find((u) => u.id === p.hero)?.name}>
+                    <Portrait id={p.hero} />
+                  </span>
+                )}
                 <span className="seat-name">
                   {p.name}
                   {p.isBot && <> <Icon id="bot" /></>}

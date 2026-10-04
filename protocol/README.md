@@ -25,6 +25,19 @@ The gold loop added only JSON, never record bytes:
 - The state message adds `dragon: { isUp, landsInSeconds, buffSeconds }` when the rules have a dragon; `buffSeconds` is the viewer's own buff.
 - Event `{ "k": "announce", "type", "title", "text", "player", "team", "x", "y" }` reaches every player. `type` is `firstBlood`, `killStreak`, `shutdown`, `dragonSpawned` or `dragonSlain`; `player` and `team` are -1 when no one owns it.
 
+## Hero picks, kits and talents
+
+Picking a hero and its talents added only JSON; snapshot records keep version 2. Content numbers units, then buildings, then nodes, so the four heroes and two unique units appended to `units` shifted every building and node kind id; client and server read the same `game.json`, which is why `vision-v2.json` was regenerated.
+
+- The socket URL takes `&hero=<unit id>` beside `race`. In a lobby it sets the seat's hero when the seat's race lists it in `races[].heroes`; any other value is ignored and the seat leads the race's classic `races[].hero`.
+- Joining a running match prefers a bot seat of the requested race on the team with the fewest humans, and the pick replaces the bot's hero only while that hero has earned nothing yet. Otherwise the bot's hero stays, and a warning `notice` event a second later tells the newcomer why.
+- Lobby request `{ "t": "lobby", "action": "hero", "hero": "<unit id>" }` picks the seat's hero; a hero outside the seat's race is ignored, and a race change drops a pick the new race cannot field.
+- Lobby `seats[]`, the welcome and state `players[]`, and the end message's `players[]` carry `hero`, the unit id each seat leads. A bot seat's hero is drawn from the match seed, the same on every run.
+- Each hero's `abilities` list its kit; `cooldowns` in the state message's `hero`, the `slot` of an `ability` command and the `slot` of an `ability` event index that kit, not the global `abilities` list.
+- Ability effect `heal` restores health to the caster and every allied unit within `radius`; its `ability` event has `delayTicks` 0. Buffs may also carry `armorBonus` and `attackBonus`, and a strike may carry `stun`.
+- Command `{ "type": "pickTalent", "tier": <0-based tier>, "talent": "<talent id>" }` fills a tier once the hero's level reaches `rules.heroTalentLevels[tier]`; a filled tier or an option of another tier or hero is ignored, and a tier not yet open comes back as a warning notice. The state message's `hero` adds `talents`, a talent id per tier, `null` where unpicked; its `stats` already include what talents add. Talents last through death.
+- A unit whose `races` lists races trains only for those races, and one with `requiresTrainerLevel` only at a training building of that level; the second refusal comes back as a warning notice.
+
 ## The `end` message
 
 The server sends one `end` text frame when the match is decided. Besides each player's totals, it carries what the host recorded while the match ran (`MatchStatsRecorder`, outside the simulation):
@@ -35,7 +48,7 @@ The server sends one `end` text frame when the match is decided. Besides each pl
   "winningTeam": 0,
   "durationSeconds": 734,
   "players": [
-    { "index": 0, "name": "Ana", "team": 0, "isBot": false, "score": 4210, "gathered": 3600, "kills": 41, "losses": 12,
+    { "index": 0, "name": "Ana", "team": 0, "hero": "archmage", "isBot": false, "score": 4210, "gathered": 3600, "kills": 41, "losses": 12,
       "unitsTrained": 38, "heroLevel": 6, "soldiersTrained": 24, "buildingsBuilt": 11, "heroKills": 2, "heroDeaths": 0 }
   ],
   "timeline": {

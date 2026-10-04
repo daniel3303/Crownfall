@@ -1,6 +1,6 @@
 import { audio, type SoundId } from "../audio";
 import { SwingClock, type Swinger } from "../audio/swings";
-import { buildingDef, content, footprintSize, kindInfo } from "../content/content";
+import { buildingDef, content, footprintSize, heroKit, kindInfo } from "../content/content";
 import type { ClientWorld, WorldEntity } from "../game/world";
 import { Activity, NEUTRAL_OWNER, type GameEvent } from "../net/protocol";
 import { pingColor, type Minimap } from "../render/minimap";
@@ -10,7 +10,7 @@ import { store } from "../ui/store";
 
 const RESOURCE_COLORS: Record<string, string> = { food: "#fca5a5", wood: "#d6a77a", stone: "#d4d4d8", gold: "#fde047" };
 const DEPOSIT_SOUNDS: Record<string, SoundId> = { food: "depositFood", wood: "depositWood", stone: "depositStone", gold: "coin" };
-const ABILITY_SOUNDS: Record<string, SoundId> = { nova: "cleave", buff: "rally", dash: "charge", strike: "meteorFall" };
+const ABILITY_SOUNDS: Record<string, SoundId> = { nova: "cleave", buff: "rally", dash: "charge", strike: "meteorFall", heal: "levelUp" };
 // Units that reach farther than this shoot, and their shots arrive as events.
 const MELEE_REACH = 1;
 const MS_PER_SECOND = 1000;
@@ -101,13 +101,16 @@ export class EventPresenter {
   private showAbility(event: Extract<GameEvent, { k: "ability" }>, now: number): void {
     const fx = this.renderer.effects;
     this.renderer.cast(event.hero, event.slot, now);
-    const effect = content.abilities[event.slot]?.effect;
+    const effect = heroKit(this.world.heroOf(event.player))[event.slot]?.effect;
     if (effect === "nova") {
       fx.ring(event.x, event.y, event.radius, [1, 0.6, 0.25], 550, now);
       fx.explosion(event.x, event.y, event.radius * 0.7, [1, 0.75, 0.35], now);
     } else if (effect === "buff") {
       fx.ring(event.x, event.y, event.radius, [0.55, 1, 0.45], 650, now);
       fx.beam(event.x, event.y, [0.55, 1, 0.45], now);
+    } else if (effect === "heal") {
+      fx.ring(event.x, event.y, event.radius, [0.5, 1, 0.7], 700, now, true);
+      fx.beam(event.x, event.y, [0.5, 1, 0.7], now);
     } else if (effect === "strike") {
       fx.marker(event.x, event.y, event.radius, event.delayTicks * this.world.tickMs, now);
     }

@@ -6,4 +6,5 @@ public enum LobbyAction
     SwitchTeam,
     SetRace,
     SetName,
+    SetHero,
 }

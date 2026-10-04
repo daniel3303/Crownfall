@@ -29,7 +29,6 @@ public sealed class BotCombatModel
     // Melee units that can stand around a big target and hit it at once.
     private const int MeleeFrontage = 12;
 
-    private readonly IReadOnlyList<AbilityDef> _abilities;
     private readonly RulesDef _rules;
     private readonly float[,] _dps;
     private readonly float[,] _exchange;
@@ -40,9 +39,9 @@ public sealed class BotCombatModel
     public BotCombatModel(ContentDb content)
     {
         var units = content.Units;
-        _abilities = content.Abilities;
         _rules = content.Rules;
         Military = units.Where(u => u.IsMilitary).ToList();
+        Roster = Military.Where(u => u.Races.Count == 0).ToList();
         Fighters = units.Where(u => u.IsMilitary || u.IsHero).ToList();
         _dps = new float[units.Count, units.Count];
         foreach (var attacker in units)
@@ -53,9 +52,9 @@ public sealed class BotCombatModel
                 _dps[attacker.Kind, target.Kind] = attacker.Cooldown > 0 ? damage / attacker.Cooldown : 0;
             }
         }
-        _averagePower = Military.Count == 0 ? 1 : Military.Average(Power);
-        _averageCost = Military.Count == 0 ? 1 : Military.Average(Cost);
-        _averageHp = Military.Count == 0 ? 1 : Military.Average(u => u.Hp);
+        _averagePower = Roster.Count == 0 ? 1 : Roster.Average(Power);
+        _averageCost = Roster.Count == 0 ? 1 : Roster.Average(Cost);
+        _averageHp = Roster.Count == 0 ? 1 : Roster.Average(u => u.Hp);
         _exchange = new float[units.Count, units.Count];
         foreach (var mine in Military)
         {
@@ -66,8 +65,11 @@ public sealed class BotCombatModel
         }
     }
 
-    /// <summary>Trainable fighting units in content order.</summary>
+    /// <summary>Trainable fighting units in content order, every race's own units included.</summary>
     public IReadOnlyList<UnitDef> Military { get; }
+
+    /// <summary>The soldiers every race trains: the average soldier that power, cost and health are measured against.</summary>
+    public IReadOnlyList<UnitDef> Roster { get; }
 
     /// <summary>Everything an enemy fights with: the trainable units and the heroes.</summary>
     public IReadOnlyList<UnitDef> Fighters { get; }
@@ -112,8 +114,8 @@ public sealed class BotCombatModel
             return Power(unit);
         }
         var level = HeroLevel(unit);
-        var dps = AverageDps(unit.AttackDamage, unit.Def) + AbilityDps(level, lethalOnly: true);
-        var crowd = 1 + (HeroCrowdFactor - 1) * AreaLethality(level);
+        var dps = AverageDps(unit.AttackDamage, unit.Def) + AbilityDps(unit.Def, level, lethalOnly: true);
+        var crowd = 1 + (HeroCrowdFactor - 1) * AreaLethality(unit.Def, level);
         return crowd * MathF.Sqrt(MathF.Max(0, unit.Hp) * dps);
     }
 
@@ -126,13 +128,13 @@ public sealed class BotCombatModel
     public float ThreatDps(Unit unit)
     {
         var dps = AverageDps(unit.AttackDamage, unit.Def) * SplashTargets(unit.Def);
-        return unit.IsHero ? dps + AbilityDps(HeroLevel(unit), lethalOnly: false) : dps;
+        return unit.IsHero ? dps + AbilityDps(unit.Def, HeroLevel(unit), lethalOnly: false) : dps;
     }
 
     /// <summary>Power of a unit type at full health and first level, for units the bot has not seen.</summary>
     public float Power(UnitDef def)
     {
-        var dps = AverageDps(def.Attack, def) * SplashTargets(def) + (def.IsHero ? AbilityDps(1, lethalOnly: false) : 0);
+        var dps = AverageDps(def.Attack, def) * SplashTargets(def) + (def.IsHero ? AbilityDps(def, 1, lethalOnly: false) : 0);
         return Crowd(def) * MathF.Sqrt(def.Hp * dps);
     }
 
@@ -145,11 +147,11 @@ public sealed class BotCombatModel
         return Math.Clamp(damage / _averageHp, 0f, 1f);
     }
 
-    /// <summary>The most lethal area ability a hero of this level has unlocked, as <see cref="Lethality"/>.</summary>
-    public float AreaLethality(int level)
+    /// <summary>The most lethal area ability a hero of this kind and level has unlocked, as <see cref="Lethality"/>.</summary>
+    public float AreaLethality(UnitDef hero, int level)
     {
         var best = 0f;
-        foreach (var ability in _abilities)
+        foreach (var ability in hero.Kit)
         {
             if (level >= ability.UnlockLevel && ability.Damage > 0 && ability.Radius > 0)
             {
@@ -175,7 +177,7 @@ public sealed class BotCombatModel
             }
             var hit = CombatSystem.ComputeDamage(unit.AttackDamage, unit.Def.DamageType, unit.Def.Bonus, boss);
             dps += unit.Def.Cooldown > 0 ? hit / unit.CooldownAt(tick) : 0;
-            dps += unit.IsHero ? SingleTargetAbilityDps(HeroLevel(unit)) : 0;
+            dps += unit.IsHero ? SingleTargetAbilityDps(unit.Def, HeroLevel(unit)) : 0;
         }
         if (dps <= 0 || group.Count == 0)
         {
@@ -201,16 +203,16 @@ public sealed class BotCombatModel
     public float DefensePower(BuildingDef def)
     {
         var attack = def.Attack;
-        if (attack == null || attack.Cooldown <= 0 || Military.Count == 0)
+        if (attack == null || attack.Cooldown <= 0 || Roster.Count == 0)
         {
             return 0;
         }
         var total = 0f;
-        foreach (var target in Military)
+        foreach (var target in Roster)
         {
             total += CombatSystem.ComputeDamage(attack.Damage, attack.DamageType, [], target) / attack.Cooldown;
         }
-        return MathF.Sqrt(ReferenceHp * total / Military.Count);
+        return MathF.Sqrt(ReferenceHp * total / Roster.Count);
     }
 
     /// <summary>Damage one attack of the unit deals to a live target, with any armor a hero's items add.</summary>
@@ -225,10 +227,10 @@ public sealed class BotCombatModel
     }
 
     /// <summary>Area damage per second a hero's abilities deal to a crowd; <paramref name="lethalOnly"/> weighs it by <see cref="Lethality"/>.</summary>
-    private float AbilityDps(int level, bool lethalOnly)
+    private float AbilityDps(UnitDef hero, int level, bool lethalOnly)
     {
         var total = 0f;
-        foreach (var ability in _abilities)
+        foreach (var ability in hero.Kit)
         {
             if (level >= ability.UnlockLevel && ability.Cooldown > 0 && ability.Damage > 0)
             {
@@ -241,10 +243,10 @@ public sealed class BotCombatModel
     }
 
     /// <summary>What a hero's damaging abilities add against one big target.</summary>
-    private float SingleTargetAbilityDps(int level)
+    private float SingleTargetAbilityDps(UnitDef hero, int level)
     {
         var total = 0f;
-        foreach (var ability in _abilities)
+        foreach (var ability in hero.Kit)
         {
             if (level >= ability.UnlockLevel && ability.Cooldown > 0 && ability.Damage > 0)
             {
@@ -262,16 +264,16 @@ public sealed class BotCombatModel
 
     private float AverageDps(float attack, UnitDef def)
     {
-        if (def.Cooldown <= 0 || Military.Count == 0)
+        if (def.Cooldown <= 0 || Roster.Count == 0)
         {
             return 0;
         }
         var total = 0f;
-        foreach (var target in Military)
+        foreach (var target in Roster)
         {
             total += CombatSystem.ComputeDamage(attack, def.DamageType, def.Bonus, target);
         }
-        return total / Military.Count / def.Cooldown;
+        return total / Roster.Count / def.Cooldown;
     }
 
     private float ComputeExchange(UnitDef mine, UnitDef theirs)

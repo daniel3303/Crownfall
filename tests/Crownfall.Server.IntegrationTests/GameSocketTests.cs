@@ -104,6 +104,26 @@ public class GameSocketTests : IClassFixture<WebApplicationFactory<Crownfall.Ser
     }
 
     [Fact]
+    public async Task Lobby_HeroPickedOnJoinAndChanged_LeadsTheLastPickIntoTheMatch()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var lobby = await CreateLobby(_factory.CreateClient(), """{"teams":2,"playersPerTeam":1,"mapSize":"small"}""", token);
+        var socket = await _factory.Server.CreateWebSocketClient()
+            .ConnectAsync(new Uri($"ws://localhost/ws?match={lobby.Value<string>("id")}&name=Tester&race=humans&hero=ranger"), token);
+        var joined = await ReceiveJson(socket, "lobby", token);
+
+        await SendJson(socket, """{"t":"lobby","action":"hero","hero":"archmage"}""", token);
+        var picked = await ReceiveJson(socket, "lobby", token);
+        await SendJson(socket, """{"t":"lobby","action":"start"}""", token);
+        var welcome = await ReceiveJson(socket, "welcome", token);
+
+        Tester(joined).Value<string>("hero").Should().Be("ranger");
+        Tester(picked).Value<string>("hero").Should().Be("archmage");
+        welcome["players"]!.Single(p => p.Value<string>("name") == "Tester").Value<string>("hero").Should().Be("archmage");
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", token);
+    }
+
+    [Fact]
     public async Task Health_ReturnsOk()
     {
         var response = await _factory.CreateClient().GetAsync("/healthz", TestContext.Current.CancellationToken);
@@ -122,6 +142,12 @@ public class GameSocketTests : IClassFixture<WebApplicationFactory<Crownfall.Ser
     private async Task<WebSocket> Connect(string matchId, CancellationToken token)
     {
         return await _factory.Server.CreateWebSocketClient().ConnectAsync(new Uri($"ws://localhost/ws?match={matchId}&name=Tester&race=humans"), token);
+    }
+
+    /// <summary>The test client's seat in a lobby message.</summary>
+    private static JToken Tester(JObject lobby)
+    {
+        return lobby["seats"]!.Single(s => s.Value<string>("name") == "Tester");
     }
 
     /// <summary>Lobby ids from the public list, polled until <paramref name="expected"/> shows, since the match loop publishes its counts a tick later.</summary>

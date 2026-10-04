@@ -75,7 +75,10 @@ class MetaStore {
   private toastReward(reward: MatchReward): void {
     for (const a of reward.achievements) this.toast("achievement", a.name, a.description, a.icon);
     if (reward.after.level > reward.before.level) this.toast("level", `Level ${reward.after.level}`, "Your legend grows.", "crown");
-    for (const item of reward.unlocked) this.toast("unlock", `${item.name} unlocked`, `New ${item.kind} for your banner.`, "sparkles");
+    for (const item of reward.unlocked) {
+      const text = item.kind === "hero" ? "A new hero to lead; pick it in the menu or the lobby." : `New ${item.kind} for your banner.`;
+      this.toast("unlock", `${item.name} unlocked`, text, "sparkles");
+    }
     for (const c of reward.challenges.filter((c) => c.completed)) this.toast("challenge", "Daily challenge complete", c.def.text, "calendar");
     if (reward.rung) this.toast("ladder", `${reward.rung.rank} rank earned`, `You beat ${reward.rung.foe} bot.`, "medal");
   }

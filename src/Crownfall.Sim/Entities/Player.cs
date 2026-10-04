@@ -14,7 +14,8 @@ public sealed class Player
     public BotDifficulty BotDifficulty { get; set; }
     public Stockpile Stock { get; init; }
     public StartLocation Start { get; init; }
-    public HeroState HeroState { get; init; }
+    /// <summary>The hero's progress; replaced only when a newcomer swaps in another hero before this one earned anything.</summary>
+    public HeroState HeroState { get; set; }
 
     /// <summary>The living hero unit, or null while it waits to respawn.</summary>
     public Unit Hero { get; set; }

@@ -6,6 +6,9 @@ public sealed class EndPlayerView
     public string Name { get; init; }
     public int Team { get; init; }
     public bool IsBot { get; init; }
+
+    /// <summary>Unit id of the player's hero.</summary>
+    public string Hero { get; init; }
     public int Score { get; init; }
     public int Gathered { get; init; }
     public int Kills { get; init; }

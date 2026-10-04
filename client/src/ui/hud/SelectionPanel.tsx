@@ -71,7 +71,7 @@ function describe(selection: SelectionView) {
 
 function entityTip(entity: EntityView) {
   if (entity.category === "unit") return <UnitTip def={unitDef(entity.defId)} rank={(entity.flags & Flags.Hero) === 0 ? entity.level : 1} />;
-  if (entity.category === "building") return <BuildingTip def={buildingDef(entity.defId)} />;
+  if (entity.category === "building") return <BuildingTip def={buildingDef(entity.defId)} race={entity.race} />;
   const node = content.nodes.find((n) => n.id === entity.defId);
   return <TextTip title={entity.name} text={`${ROLE[entity.defId] ?? ""} Holds ${node?.amount ?? entity.maxHp} ${node?.resource ?? ""} when full.`} />;
 }

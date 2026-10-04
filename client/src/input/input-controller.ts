@@ -1,5 +1,6 @@
 import { content } from "../content/content";
 import type { GameView } from "../play/game-view";
+import { slotForKey } from "../ui/hud/hero-kit";
 import { store } from "../ui/store";
 import { decay, grabDelta, smoothVelocity, trackVelocity, wheelIntent, type MapPoint } from "./drag-pan";
 
@@ -248,7 +249,7 @@ export class InputController {
       view.nextIdleVillager();
       return true;
     }
-    const ability = content.abilities.findIndex((a) => a.key.toLowerCase() === key);
+    const ability = slotForKey(view.world.heroOf(view.world.you), key);
     if (ability >= 0) {
       view.castAbility(ability, true);
       return true;

@@ -8,11 +8,14 @@ import { Connection } from "./net/connection";
 import type { MatchConfig, ServerMessage, SnapshotFrame } from "./net/protocol";
 import { GameView } from "./play/game-view";
 import { metaStore } from "./ui/meta/meta-store";
+import { profileHero } from "./ui/profile";
 import { store } from "./ui/store";
 
 export interface Profile {
   name: string;
   race: string;
+  /** The last hero picked for each race, by race id; a seat leads the race's classic hero without one. */
+  heroes?: Record<string, string>;
 }
 
 /** One connection to one match, from lobby to end screen. The React UI drives it through `session`. */
@@ -68,7 +71,7 @@ class MatchSession {
     store.reset({ screen: "connecting" });
     try {
       const match = await open();
-      this.connection = new Connection(match.id, profile.name, profile.race, {
+      this.connection = new Connection(match.id, profile.name, profile.race, profileHero(profile), {
         message: (message) => this.message(message),
         snapshot: (frame) => this.snapshot(frame),
         closed: (reason) => this.closed(reason),

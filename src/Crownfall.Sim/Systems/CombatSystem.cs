@@ -290,7 +290,8 @@ public sealed class CombatSystem
 
     private void Land(PendingStrike strike)
     {
-        var radius = strike.Ability.Radius;
+        var radius = strike.Radius;
+        var stunTicks = (int)MathF.Ceiling(strike.Stun * _game.Content.Rules.TickRate);
         _game.Events.Add(new ImpactEvent { Team = strike.Owner.Team, X = strike.Point.X, Y = strike.Point.Y, Radius = radius });
         _candidates.Clear();
         _game.Spatial.Query(strike.Point, radius, _candidates.Add);
@@ -298,6 +299,10 @@ public sealed class CombatSystem
         {
             if (unit.IsAlive && unit.Team != strike.Owner.Team)
             {
+                if (stunTicks > 0)
+                {
+                    unit.StunUntilTick = Math.Max(unit.StunUntilTick, _game.Tick + stunTicks);
+                }
                 Damage(unit, strike.Damage, strike.Caster, strike.Owner);
             }
         }

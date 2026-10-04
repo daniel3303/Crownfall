@@ -15,7 +15,8 @@ internal static class TestGames
         int seed = 42,
         MapSize size = MapSize.Small,
         ResourceSharing sharing = ResourceSharing.SeparateWithTribute,
-        BotDifficulty difficulty = BotDifficulty.Normal)
+        BotDifficulty difficulty = BotDifficulty.Normal,
+        IReadOnlyList<string> heroes = null)
     {
         var config = new MatchConfig
         {
@@ -37,6 +38,7 @@ internal static class TestGames
                     Team = team,
                     Race = (team + slot) % 2 == 0 ? "humans" : "orcs",
                     IsBot = bots,
+                    Hero = heroes?[seats.Count],
                 });
             }
         }
@@ -57,6 +59,18 @@ internal static class TestGames
     {
         player.BotDifficulty = difficulty;
         game.SetBotControl(player, true, player.Name);
+    }
+
+    /// <summary>A one-versus-one game where the first seat plays a human hero and the second an orc hero.</summary>
+    public static Game CreateWithHeroes(string humanHero, string orcHero = null)
+    {
+        return Create(heroes: [humanHero, orcHero]);
+    }
+
+    /// <summary>The kit slot of an ability on a player's hero, or -1 when its kit lacks it.</summary>
+    public static int Slot(Player player, string abilityId)
+    {
+        return player.HeroState.Kit.ToList().FindIndex(a => a.Id == abilityId);
     }
 
     public static void Run(Game game, int ticks)

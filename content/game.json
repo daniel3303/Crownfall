@@ -39,6 +39,7 @@
     "heroCooldownReductionPerLevel": 0.04,
     "heroCooldownReductionMax": 0.4,
     "heroCooldownReductionCap": 0.55,
+    "heroTalentLevels": [4, 7, 10],
     "heroInventorySlots": 6,
     "itemShopRange": 8,
     "itemSellRefund": 0.5,
@@ -148,7 +149,7 @@
     {
       "id": "paladin",
       "name": "Paladin",
-      "hp": 320,
+      "hp": 340,
       "attack": 15,
       "damageType": "melee",
       "range": 0.6,
@@ -160,12 +161,27 @@
       "radius": 0.45,
       "xp": 120,
       "tags": ["hero"],
-      "growth": { "hp": 20, "attack": 1.5, "curve": 0.15 }
+      "growth": { "hp": 20, "attack": 1.5, "curve": 0.15 },
+      "abilities": ["cleave", "rally", "charge", "doomfall"],
+      "talents": [
+        [
+          { "id": "righteousCleave", "name": "Righteous Cleave", "ability": "cleave", "abilityDamage": 0.35, "radius": 0.5 },
+          { "id": "bulwark", "name": "Bulwark", "armor": { "melee": 2, "pierce": 2 } }
+        ],
+        [
+          { "id": "relentlessCharge", "name": "Relentless Charge", "ability": "charge", "cooldown": 4, "stun": 0.5 },
+          { "id": "crusadersVigor", "name": "Crusader's Vigor", "hp": 180 }
+        ],
+        [
+          { "id": "judgement", "name": "Judgement", "ability": "doomfall", "abilityDamage": 0.4, "radius": 1 },
+          { "id": "holyBlade", "name": "Holy Blade", "attack": 8, "lifeSteal": 0.1 }
+        ]
+      ]
     },
     {
       "id": "warchief",
       "name": "Warchief",
-      "hp": 360,
+      "hp": 345,
       "attack": 14,
       "damageType": "melee",
       "range": 0.6,
@@ -177,7 +193,22 @@
       "radius": 0.5,
       "xp": 120,
       "tags": ["hero"],
-      "growth": { "hp": 22, "attack": 1.5, "curve": 0.15 }
+      "growth": { "hp": 22, "attack": 1.5, "curve": 0.15 },
+      "abilities": ["cleave", "rally", "charge", "doomfall"],
+      "talents": [
+        [
+          { "id": "warDrums", "name": "War Drums", "ability": "rally", "duration": 3, "radius": 1.5 },
+          { "id": "thickHide", "name": "Thick Hide", "hp": 100 }
+        ],
+        [
+          { "id": "batteringCharge", "name": "Battering Charge", "ability": "charge", "abilityDamage": 0.5, "cooldown": 3 },
+          { "id": "bloodthirst", "name": "Bloodthirst", "hp": 60, "lifeSteal": 0.1 }
+        ],
+        [
+          { "id": "doom", "name": "Doom", "ability": "doomfall", "abilityDamage": 0.4, "cooldown": 15 },
+          { "id": "warlord", "name": "Warlord", "attack": 6, "attackSpeed": 0.15 }
+        ]
+      ]
     },
     {
       "id": "wolf",
@@ -226,6 +257,177 @@
       "radius": 1.3,
       "xp": 400,
       "tags": ["creep", "boss", "passive"]
+    },
+    {
+      "id": "archmage",
+      "name": "Archmage",
+      "hp": 370,
+      "attack": 13,
+      "damageType": "pierce",
+      "range": 5.5,
+      "cooldown": 1.5,
+      "armor": { "melee": 3, "pierce": 0 },
+      "speed": 2.5,
+      "sight": 16,
+      "acquireRange": 9,
+      "radius": 0.45,
+      "xp": 120,
+      "tags": ["hero"],
+      "growth": { "hp": 21.4, "attack": 1.2, "curve": 0.15 },
+      "abilities": ["fireball", "arcaneWard", "blink", "meteor"],
+      "talents": [
+        [
+          { "id": "searingFireball", "name": "Searing Fireball", "ability": "fireball", "abilityDamage": 0.4, "radius": 0.5 },
+          { "id": "manaShield", "name": "Mana Shield", "hp": 120, "armor": { "melee": 1, "pierce": 1 } }
+        ],
+        [
+          { "id": "quickBlink", "name": "Quick Blink", "ability": "blink", "cooldown": 4, "range": 2 },
+          { "id": "empoweredWard", "name": "Empowered Ward", "ability": "arcaneWard", "duration": 3, "radius": 2 }
+        ],
+        [
+          { "id": "cataclysm", "name": "Cataclysm", "ability": "meteor", "abilityDamage": 0.35, "radius": 1 },
+          { "id": "pyromancer", "name": "Pyromancer", "ability": "fireball", "cooldown": 2.5, "abilityDamage": 0.2 }
+        ]
+      ]
+    },
+    {
+      "id": "ranger",
+      "name": "Ranger",
+      "hp": 360,
+      "attack": 14,
+      "damageType": "pierce",
+      "range": 6,
+      "cooldown": 1.2,
+      "armor": { "melee": 3, "pierce": 0 },
+      "speed": 2.8,
+      "sight": 17,
+      "acquireRange": 9,
+      "radius": 0.45,
+      "xp": 120,
+      "tags": ["hero"],
+      "growth": { "hp": 23.5, "attack": 1.4, "curve": 0.15 },
+      "abilities": ["volley", "huntersFocus", "roll", "arrowRain"],
+      "talents": [
+        [
+          { "id": "barbedVolley", "name": "Barbed Volley", "ability": "volley", "abilityDamage": 0.4 },
+          { "id": "fleetFoot", "name": "Fleet Foot", "moveSpeed": 0.12 }
+        ],
+        [
+          { "id": "tumble", "name": "Tumble", "ability": "roll", "cooldown": 4 },
+          { "id": "keenEye", "name": "Keen Eye", "attack": 5, "attackSpeed": 0.08 }
+        ],
+        [
+          { "id": "stormOfArrows", "name": "Storm of Arrows", "ability": "arrowRain", "abilityDamage": 0.25, "radius": 1.5 },
+          { "id": "deadeye", "name": "Deadeye", "attackSpeed": 0.2, "lifeSteal": 0.06 }
+        ]
+      ]
+    },
+    {
+      "id": "shaman",
+      "name": "Shaman",
+      "hp": 270,
+      "attack": 14,
+      "damageType": "pierce",
+      "range": 5.5,
+      "cooldown": 1.4,
+      "armor": { "melee": 3, "pierce": 0 },
+      "speed": 2.6,
+      "sight": 16,
+      "acquireRange": 9,
+      "radius": 0.45,
+      "xp": 120,
+      "tags": ["hero"],
+      "growth": { "hp": 17.8, "attack": 1.3, "curve": 0.15 },
+      "abilities": ["chainLightning", "bloodlust", "healingWave", "earthquake"],
+      "talents": [
+        [
+          { "id": "forkedLightning", "name": "Forked Lightning", "ability": "chainLightning", "abilityDamage": 0.25, "radius": 1 },
+          { "id": "ancestralSpirit", "name": "Ancestral Spirit", "hp": 150 }
+        ],
+        [
+          { "id": "tidalHealing", "name": "Tidal Healing", "ability": "healingWave", "abilityDamage": 0.5, "cooldown": 3 },
+          { "id": "frenzy", "name": "Frenzy", "ability": "bloodlust", "duration": 3, "radius": 1.5 }
+        ],
+        [
+          { "id": "tectonic", "name": "Tectonic", "ability": "earthquake", "stun": 1, "radius": 1 },
+          { "id": "stormCaller", "name": "Storm Caller", "ability": "chainLightning", "cooldown": 3 }
+        ]
+      ]
+    },
+    {
+      "id": "blademaster",
+      "name": "Blademaster",
+      "hp": 315,
+      "attack": 14,
+      "damageType": "melee",
+      "range": 0.6,
+      "cooldown": 1.2,
+      "armor": { "melee": 2, "pierce": 2 },
+      "speed": 2.9,
+      "sight": 16,
+      "acquireRange": 9,
+      "radius": 0.45,
+      "xp": 120,
+      "tags": ["hero"],
+      "growth": { "hp": 31.4, "attack": 1.5, "curve": 0.15 },
+      "abilities": ["whirlwind", "battleCry", "windWalk", "bladestorm"],
+      "talents": [
+        [
+          { "id": "razorWind", "name": "Razor Wind", "ability": "whirlwind", "abilityDamage": 0.35 },
+          { "id": "evasion", "name": "Evasion", "armor": { "melee": 2, "pierce": 2 } }
+        ],
+        [
+          { "id": "phantomStep", "name": "Phantom Step", "ability": "windWalk", "cooldown": 4, "range": 2 },
+          { "id": "bloodEdge", "name": "Blood Edge", "lifeSteal": 0.1 }
+        ],
+        [
+          { "id": "eyeOfTheStorm", "name": "Eye of the Storm", "ability": "bladestorm", "abilityDamage": 0.3, "radius": 1 },
+          { "id": "mastersBlade", "name": "Master's Blade", "attack": 8, "attackSpeed": 0.15 }
+        ]
+      ]
+    },
+    {
+      "id": "knight",
+      "name": "Knight",
+      "hp": 190,
+      "attack": 13,
+      "damageType": "melee",
+      "range": 0.6,
+      "cooldown": 1.7,
+      "armor": { "melee": 3, "pierce": 4 },
+      "speed": 3.3,
+      "sight": 13,
+      "acquireRange": 7,
+      "radius": 0.6,
+      "cost": { "food": 110, "gold": 90 },
+      "trainTime": 18,
+      "pop": 1,
+      "xp": 45,
+      "tags": ["cavalry", "military"],
+      "bonus": [{ "vs": "archer", "damage": 6 }],
+      "races": ["humans"],
+      "requiresTrainerLevel": 2
+    },
+    {
+      "id": "berserker",
+      "name": "Berserker",
+      "hp": 95,
+      "attack": 15,
+      "damageType": "melee",
+      "range": 0.5,
+      "cooldown": 1.2,
+      "armor": { "melee": 0, "pierce": 0 },
+      "speed": 2.5,
+      "sight": 12,
+      "acquireRange": 6,
+      "radius": 0.4,
+      "cost": { "food": 60, "wood": 20, "gold": 50 },
+      "trainTime": 11,
+      "pop": 1,
+      "xp": 30,
+      "tags": ["infantry", "military"],
+      "races": ["orcs"],
+      "requiresTrainerLevel": 2
     }
   ],
   "buildings": [
@@ -330,7 +532,7 @@
       "sight": 8,
       "cost": { "wood": 150 },
       "buildTime": 30,
-      "trains": ["spearman", "archer", "rider"],
+      "trains": ["spearman", "archer", "rider", "knight", "berserker"],
       "levels": [
         {
           "cost": { "wood": 175, "gold": 75 },
@@ -462,6 +664,7 @@
       "id": "humans",
       "name": "Humans",
       "hero": "paladin",
+      "heroes": ["paladin", "archmage", "ranger"],
       "description": "Gather 10% faster; buildings have 20% more HP.",
       "gatherMultiplier": 1.1,
       "buildingHpMultiplier": 1.2,
@@ -472,6 +675,7 @@
       "id": "orcs",
       "name": "Orcs",
       "hero": "warchief",
+      "heroes": ["warchief", "shaman", "blademaster"],
       "description": "Military units have 12% more HP and train 15% faster.",
       "gatherMultiplier": 1.0,
       "buildingHpMultiplier": 1.0,
@@ -534,6 +738,224 @@
       "damagePerLevel": 20,
       "buildingMultiplier": 0.5,
       "description": "Call down a meteor on a target area after a short delay."
+    },
+    {
+      "id": "fireball",
+      "name": "Fireball",
+      "key": "Q",
+      "effect": "strike",
+      "unlockLevel": 1,
+      "cooldown": 7,
+      "range": 8,
+      "radius": 1.6,
+      "delay": 0.4,
+      "damage": 45,
+      "damagePerLevel": 12,
+      "buildingMultiplier": 0.3,
+      "description": "Hurl a ball of fire that bursts on a target area."
+    },
+    {
+      "id": "arcaneWard",
+      "name": "Arcane Ward",
+      "key": "W",
+      "effect": "buff",
+      "unlockLevel": 3,
+      "cooldown": 24,
+      "radius": 6,
+      "duration": 7,
+      "armorBonus": 3,
+      "speedBonus": 0.1,
+      "description": "Nearby allies gain 3 armor and move 10% faster."
+    },
+    {
+      "id": "blink",
+      "name": "Blink",
+      "key": "E",
+      "effect": "dash",
+      "unlockLevel": 2,
+      "cooldown": 11,
+      "range": 7,
+      "radius": 0,
+      "speed": 45,
+      "description": "Flash to a point in an instant, stopping short of walls and water."
+    },
+    {
+      "id": "meteor",
+      "name": "Meteor",
+      "key": "R",
+      "effect": "strike",
+      "unlockLevel": 6,
+      "cooldown": 55,
+      "range": 10,
+      "radius": 3.2,
+      "delay": 1.4,
+      "damage": 130,
+      "damagePerLevel": 18,
+      "stun": 1,
+      "buildingMultiplier": 0.6,
+      "description": "Call down a burning meteor that stuns everything it strikes for 1 second."
+    },
+    {
+      "id": "volley",
+      "name": "Volley",
+      "key": "Q",
+      "effect": "strike",
+      "unlockLevel": 1,
+      "cooldown": 8,
+      "range": 7,
+      "radius": 2,
+      "delay": 0.5,
+      "damage": 45,
+      "damagePerLevel": 11,
+      "buildingMultiplier": 0.25,
+      "description": "Loose a spray of arrows over a target area."
+    },
+    {
+      "id": "huntersFocus",
+      "name": "Hunter's Focus",
+      "key": "W",
+      "effect": "buff",
+      "unlockLevel": 3,
+      "cooldown": 20,
+      "radius": 4,
+      "duration": 6,
+      "attackSpeedBonus": 0.5,
+      "speedBonus": 0.1,
+      "description": "Nearby allies attack 50% faster and move 10% faster."
+    },
+    {
+      "id": "roll",
+      "name": "Roll",
+      "key": "E",
+      "effect": "dash",
+      "unlockLevel": 2,
+      "cooldown": 9,
+      "range": 4,
+      "radius": 0,
+      "speed": 14,
+      "description": "Tumble out of harm's way."
+    },
+    {
+      "id": "arrowRain",
+      "name": "Arrow Rain",
+      "key": "R",
+      "effect": "strike",
+      "unlockLevel": 6,
+      "cooldown": 50,
+      "range": 10,
+      "radius": 3.5,
+      "delay": 1,
+      "damage": 130,
+      "damagePerLevel": 20,
+      "buildingMultiplier": 0.4,
+      "description": "Darken the sky with arrows over a wide target area."
+    },
+    {
+      "id": "chainLightning",
+      "name": "Chain Lightning",
+      "key": "Q",
+      "effect": "strike",
+      "unlockLevel": 1,
+      "cooldown": 8,
+      "range": 7,
+      "radius": 2.5,
+      "delay": 0,
+      "damage": 30,
+      "damagePerLevel": 12,
+      "buildingMultiplier": 0.25,
+      "description": "Lightning strikes a target area at once and arcs through every enemy there."
+    },
+    {
+      "id": "bloodlust",
+      "name": "Bloodlust",
+      "key": "W",
+      "effect": "buff",
+      "unlockLevel": 3,
+      "cooldown": 22,
+      "radius": 6,
+      "duration": 8,
+      "attackSpeedBonus": 0.4,
+      "speedBonus": 0.15,
+      "description": "Nearby allies attack 40% faster and move 15% faster."
+    },
+    {
+      "id": "healingWave",
+      "name": "Healing Wave",
+      "key": "E",
+      "effect": "heal",
+      "unlockLevel": 2,
+      "cooldown": 15,
+      "radius": 6,
+      "heal": 40,
+      "healPerLevel": 10,
+      "description": "Heal your hero and every nearby ally."
+    },
+    {
+      "id": "earthquake",
+      "name": "Earthquake",
+      "key": "R",
+      "effect": "strike",
+      "unlockLevel": 6,
+      "cooldown": 60,
+      "range": 9,
+      "radius": 3.5,
+      "delay": 1,
+      "damage": 160,
+      "damagePerLevel": 24,
+      "stun": 1.5,
+      "buildingMultiplier": 0.8,
+      "description": "Split the ground under a target area, stunning everything there for 1.5 seconds."
+    },
+    {
+      "id": "whirlwind",
+      "name": "Whirlwind",
+      "key": "Q",
+      "effect": "nova",
+      "unlockLevel": 1,
+      "cooldown": 7,
+      "radius": 2.2,
+      "damage": 22,
+      "damagePerLevel": 7,
+      "description": "Spin with your blade, cutting every enemy around your hero."
+    },
+    {
+      "id": "battleCry",
+      "name": "Battle Cry",
+      "key": "W",
+      "effect": "buff",
+      "unlockLevel": 3,
+      "cooldown": 22,
+      "radius": 6,
+      "duration": 7,
+      "attackBonus": 0.25,
+      "speedBonus": 0.15,
+      "description": "Nearby allies hit 25% harder and move 15% faster."
+    },
+    {
+      "id": "windWalk",
+      "name": "Wind Walk",
+      "key": "E",
+      "effect": "dash",
+      "unlockLevel": 2,
+      "cooldown": 12,
+      "range": 6,
+      "radius": 1,
+      "speed": 20,
+      "damage": 35,
+      "damagePerLevel": 8,
+      "description": "Dash through the enemy line, cutting every enemy you pass."
+    },
+    {
+      "id": "bladestorm",
+      "name": "Bladestorm",
+      "key": "R",
+      "effect": "nova",
+      "unlockLevel": 6,
+      "cooldown": 45,
+      "radius": 3.5,
+      "damage": 70,
+      "damagePerLevel": 10,
+      "description": "Unleash a storm of blades on every enemy around your hero."
     }
   ],
   "items": [

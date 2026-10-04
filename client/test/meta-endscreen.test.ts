@@ -9,6 +9,7 @@ function player(index: number, team: number, patch: Partial<EndPlayer> = {}): En
     index,
     name: `P${index}`,
     team,
+    hero: team === 0 ? "paladin" : "warchief",
     isBot: index !== 0,
     score: 0,
     gathered: 0,
@@ -60,8 +61,8 @@ describe("match outcome", () => {
   };
   const config = { teams: 2, playersPerTeam: 1, sharing: "separate" as const, difficulty: "hard" as const, mapSize: "small" as const };
   const roster = [
-    { index: 0, name: "P0", team: 0, race: "orcs", isBot: false, defeated: false, score: 0 },
-    { index: 1, name: "P1", team: 1, race: "humans", isBot: true, defeated: false, score: 0 },
+    { index: 0, name: "P0", team: 0, race: "orcs", hero: "warchief", isBot: false, defeated: false, score: 0 },
+    { index: 1, name: "P1", team: 1, race: "humans", hero: "paladin", isBot: true, defeated: false, score: 0 },
   ];
 
   it("reads the local seat's result, race and the enemy bots", () => {

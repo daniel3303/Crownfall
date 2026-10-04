@@ -1,5 +1,5 @@
 import { audio } from "../audio";
-import { buildingDef, content, isTargeted, isVillager } from "../content/content";
+import { buildingDef, heroKit, isTargeted, isVillager } from "../content/content";
 import { contextCommand } from "../game/commands";
 import { canPlace, isLineBuilding, lineCells, placementOrigin } from "../game/placement";
 import { Selection } from "../game/selection";
@@ -250,7 +250,7 @@ export class GameView {
    * otherwise, or with no pointer over the map yet, it waits for a click on the ground.
    */
   castAbility(slot: number, quick: boolean): void {
-    const ability = content.abilities[slot];
+    const ability = heroKit(this.world.heroOf(this.world.you))[slot];
     if (!ability) return;
     if (isTargeted(ability)) {
       const ground = quick && this.pointer ? this.renderer.camera.groundAt(this.pointer.x, this.pointer.y) : null;
@@ -270,6 +270,12 @@ export class GameView {
     if (mode.kind !== "ability" || !ground) return;
     this.issue({ type: "ability", slot: mode.slot, x: ground.x, y: ground.y });
     this.setMode({ kind: "normal" });
+  }
+
+  /** Takes one talent of an open tier; the server checks the level and that the tier is still free. */
+  pickTalent(tier: number, talent: string): void {
+    this.issue({ type: "pickTalent", tier, talent });
+    audio.play("levelUp");
   }
 
   /** Spends one banked hero point on a stat. */

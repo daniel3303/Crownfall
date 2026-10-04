@@ -49,7 +49,7 @@ public class SnapshotEncoderTests
         var hero = game.Players[0].Hero;
         var villager = game.Entities.Units.First(u => u.Owner == game.Players[0] && u.Def.IsVillager);
         hero.Hero.Ranks[content.HeroStatIndex("attackSpeed")] = 2;
-        hero.Buff = content.Abilities.First(a => a.AttackSpeedBonus > 0);
+        hero.Buff = content.Ability("rally");
         hero.BuffUntilTick = game.Tick + 100;
         var expected = 1 + 2 * content.HeroStats[content.HeroStatIndex("attackSpeed")].PerRank + hero.Buff.AttackSpeedBonus;
 

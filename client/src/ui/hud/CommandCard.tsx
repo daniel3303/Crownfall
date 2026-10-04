@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { buildingDef, buildingStats, canAfford, content, maxLevel, RESOURCE_NAMES, unitDef, type Cost } from "../../content/content";
+import { buildingDef, buildingStats, canAfford, content, maxLevel, RESOURCE_NAMES, trainLock, unitDef, type Cost } from "../../content/content";
 import { session } from "../../session";
 import { Icon, Portrait } from "../icons";
 import { useHud, type SelectionView } from "../store";
@@ -60,7 +60,20 @@ function BuildingCommands({ selection, stock }: { selection: BuildingSelection; 
     <div className="commands panel">
       {selection.trains.map((unit, i) => {
         const def = unitDef(unit);
-        return <CommandButton key={unit} id={unit} hotkey={TRAIN_KEYS[i]} cost={def.cost} stock={stock} tip={<UnitTip def={def} hotkey={TRAIN_KEYS[i]} rank={selection.entity.level} />} onClick={() => view?.train(unit)} />;
+        const lock = trainLock(def, buildingDef(selection.entity.defId), selection.entity.level);
+        return (
+          <CommandButton
+            key={unit}
+            id={unit}
+            hotkey={TRAIN_KEYS[i]}
+            cost={def.cost}
+            stock={stock}
+            disabled={lock !== null}
+            corner={lock ? <Icon id="locked" /> : undefined}
+            tip={<UnitTip def={def} hotkey={TRAIN_KEYS[i]} rank={selection.entity.level} lock={lock} />}
+            onClick={() => view?.train(unit)}
+          />
+        );
       })}
       {isTownCenter && hero && hero.id === 0 && (
         <CommandButton

@@ -1,4 +1,5 @@
 import { content } from "../content/content";
+import { pickedHero } from "../meta/heroes";
 import { levelInfo } from "../meta/levels";
 import { normalizeMeta, type MetaState } from "../meta/progression";
 import { readJson, writeJson } from "../meta/storage";
@@ -37,6 +38,17 @@ export function saveMeta(state: MetaState): void {
 
 export function profileLevel(): number {
   return levelInfo(loadMeta().xp).level;
+}
+
+/** The hero the profile leads for its race: its last pick there while unlocked, else the race's classic hero. */
+export function profileHero(profile: Profile): string {
+  return pickedHero(profile.race, profile.heroes?.[profile.race], profileLevel());
+}
+
+/** Remembers a hero pick for its race, so the next lobby and Quick Play lead it. */
+export function rememberHero(race: string, hero: string): void {
+  const profile = loadProfile();
+  saveProfile({ ...profile, heroes: { ...profile.heroes, [race]: hero } });
 }
 
 /** Whether the local profile's level unlocks an id, such as a cosmetic or a level-gated hero. */

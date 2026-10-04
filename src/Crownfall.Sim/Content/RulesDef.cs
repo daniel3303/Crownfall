@@ -72,6 +72,9 @@ public sealed class RulesDef
     /// <summary>Most a hero's cooldowns can shrink from its level and its items together.</summary>
     public float HeroCooldownReductionCap { get; set; }
 
+    /// <summary>Hero levels at which a talent tier opens, one per tier in order.</summary>
+    public List<int> HeroTalentLevels { get; set; } = [];
+
     public int HeroInventorySlots { get; set; }
 
     /// <summary>Tiles from one of its owner's completed town centers within which a living hero can buy and sell items.</summary>

@@ -79,6 +79,9 @@ public sealed class BotProfile
     public int NovaTargets { get; init; }
     public int StrikeTargets { get; init; }
 
+    /// <summary>Option index the hero takes in each talent tier; a tier past the list takes the first option.</summary>
+    public int[] TalentPicks { get; init; } = [];
+
     /// <summary>Extra share of every deposit the bot banks, villager loads and hero bounties alike; 0 for a fair economy. The bonus never counts toward Stats.Gathered, so end-screen figures show only what was really gathered.</summary>
     public float GatherBonus { get; init; }
 
@@ -127,6 +130,7 @@ public sealed class BotProfile
                 HeroRetreatHealth = 0,
                 NovaTargets = 3,
                 StrikeTargets = 4,
+                TalentPicks = [0, 0, 0],
             },
             BotDifficulty.Hard => new BotProfile
             {
@@ -166,6 +170,7 @@ public sealed class BotProfile
                 HeroRetreatHealth = 0.35f,
                 NovaTargets = 2,
                 StrikeTargets = 3,
+                TalentPicks = [1, 1, 1],
             },
             // Hard's judgment with faster reactions, earlier attacks and a bonus-fed economy. In bot duels it does not beat
             // Hard yet (19 of 40 seeds); income, tempo and hero experience bonuses all measured as noise.
@@ -208,6 +213,7 @@ public sealed class BotProfile
                 DragonLossShare = 0.3f,
                 ItemBudget = 800,
                 GatherBonus = 0.3f,
+                TalentPicks = [1, 1, 1],
             },
             BotDifficulty.Passive => new BotProfile
             {
@@ -244,6 +250,7 @@ public sealed class BotProfile
                 NovaTargets = 3,
                 StrikeTargets = 4,
                 Passive = true,
+                TalentPicks = [0, 0, 0],
             },
             _ => new BotProfile
             {
@@ -283,6 +290,7 @@ public sealed class BotProfile
                 HeroRetreatHealth = 0.3f,
                 NovaTargets = 2,
                 StrikeTargets = 3,
+                TalentPicks = [1, 0, 1],
             },
         };
     }

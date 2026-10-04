@@ -1,4 +1,4 @@
-import { isVillager } from "../content/content";
+import { isVillager, trainableFor } from "../content/content";
 import type { ClientWorld, WorldEntity } from "../game/world";
 import { NEUTRAL_OWNER, type ProductionState } from "../net/protocol";
 import { NEUTRAL_COLOR, playerColor } from "../ui/palette";
@@ -30,7 +30,7 @@ export function describeSelection(world: ClientWorld, entities: WorldEntity[], p
       kind: "building",
       entity: describeEntity(world, entity),
       constructing: world.isUnderConstruction(entity),
-      trains: entity.info.def.trains ?? [],
+      trains: trainableFor(entity.info.def, world.players.find((p) => p.index === entity.owner)?.race),
       queue: queue?.queue ?? [],
       progress: queue?.progress ?? 0,
     };
@@ -55,6 +55,7 @@ export function describeEntity(world: ClientWorld, entity: WorldEntity): EntityV
     upgrading: entity.upgrading,
     upgradeProgress: entity.upgradeProgress,
     mine: world.isMine(entity.owner),
+    race: owner?.race,
     category: entity.info.category,
   };
 }

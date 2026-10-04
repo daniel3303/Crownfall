@@ -305,7 +305,7 @@ public class BotBehaviorTests
         hero.MaxHp = 50000;
         hero.Hp = hero.MaxHp;
         hero.Position = game.Walkable(BotBuilder.Toward(home, game.MapCenter, 12));
-        var cleave = game.Content.Abilities.First(a => a.Effect == AbilityEffect.Nova);
+        var cleave = enemy.HeroState.Kit[TestGames.Slot(enemy, "cleave")];
         var samples = 0;
         var inside = 0;
         for (var tick = 0; tick < TestGames.Seconds(16); tick++)
@@ -319,6 +319,64 @@ public class BotBehaviorTests
             inside += Army(game, bot).Count(u => Vector2.Distance(u.Position, hero.Position) <= cleave.Radius + u.Radius);
         }
         return inside / (float)samples;
+    }
+
+    [Fact]
+    public void Uniques_LevelOneBarracks_NeverQueuesTheRacesUniqueUnit()
+    {
+        var game = BarracksBot(level: 1);
+        var bot = game.Players[0];
+        var queuedEarly = false;
+        var refused = false;
+
+        RunUntil(game, TestGames.Seconds(60), () =>
+        {
+            queuedEarly |= game.Entities.Buildings.Any(b => b.Owner == bot && b.Level < 2 && b.Queue.Any(q => q.Unit.Id == "knight"));
+            refused |= game.Events.OfType<NoticeEvent>().Any(n => n.Player == bot.Index && n.Text.Contains("needs a level"));
+            return false;
+        });
+
+        queuedEarly.Should().BeFalse("a knight needs a level 2 barracks");
+        refused.Should().BeFalse("the bot never orders a unit its barracks cannot train yet");
+    }
+
+    [Fact]
+    public void Uniques_LevelTwoBarracks_TrainsTheRacesUniqueUnitAndNoOther()
+    {
+        var game = BarracksBot(level: 2);
+        var bot = game.Players[0];
+        var before = Soldiers(game, bot);
+
+        TestGames.Run(game, TestGames.Seconds(90));
+        var trained = Soldiers(game, bot);
+
+        _output.WriteLine($"trained {Describe(trained)}");
+        trained.GetValueOrDefault("knight").Should().BeGreaterThan(before.GetValueOrDefault("knight"));
+        trained.Should().NotContainKey("berserker");
+    }
+
+    /// <summary>A Hard human bot with two barracks at the given level, houses and a full bank.</summary>
+    private static Game BarracksBot(int level)
+    {
+        var game = TestGames.Create(seed: 4);
+        var bot = game.Players[0];
+        var home = game.TownCenter(bot).Position;
+        Place(game, bot, "barracks", BotBuilder.Toward(home, game.MapCenter, 6));
+        Place(game, bot, "barracks", BotBuilder.Toward(home, game.MapCenter, 6));
+        foreach (var barracks in game.Entities.Buildings.Where(b => b.Owner == bot && b.Def.Id == "barracks"))
+        {
+            barracks.Level = level;
+        }
+        for (var i = 0; i < 4; i++)
+        {
+            Place(game, bot, "house", BotBuilder.Toward(home, game.MapCenter, -6));
+        }
+        foreach (var type in Enum.GetValues<ResourceType>())
+        {
+            bot.Stock.Add(type, 5000);
+        }
+        TestGames.EnableBot(game, bot, BotDifficulty.Hard);
+        return game;
     }
 
     /// <summary>

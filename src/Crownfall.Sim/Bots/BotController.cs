@@ -96,7 +96,7 @@ public sealed class BotController
         _scout.Run(view, _military.Mode);
         _guard.Scan(view);
         _foundations.Track(view, _guard.Threat.IsActive);
-        _composer.Plan(_economy.Available);
+        _composer.Plan(view, _economy.Available);
         _economy.Prepare(view);
         _military.Assess(view, _guard.Threat, _economy.HeroReserve);
         _economy.Run(view, _composer.Mix, _guard, _military.Urgent);
@@ -128,7 +128,7 @@ public sealed class BotController
     {
         _guard.Scan(view);
         _foundations.Track(view, _guard.Threat.IsActive);
-        _composer.Plan(_economy.Available);
+        _composer.Plan(view, _economy.Available);
         _economy.Prepare(view);
         _economy.Run(view, _composer.Mix, _guard, urgent: false);
         _heroUpgrades.Run(view, _economy.ArmyReserve, urgent: false);

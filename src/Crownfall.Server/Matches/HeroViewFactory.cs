@@ -31,6 +31,7 @@ internal static class HeroViewFactory
             Items = state.Items.Select(i => i?.Id).ToArray(),
             CanShop = game.Shop.Refusal(viewer) == null,
             Streak = state.KillStreak,
+            Talents = state.Talents.Select(t => t?.Id).ToArray(),
             CooldownFactor = rules.HeroCooldownFactor(state.Level, state.ItemCooldownReduction),
             Stats = hero == null ? Resting(state) : Live(game, hero),
         };

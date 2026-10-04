@@ -67,6 +67,9 @@ public sealed class CommandProcessor
             case HeroStatCommand stat:
                 _game.Heroes.LearnStat(player, stat.Stat);
                 break;
+            case PickTalentCommand talent:
+                _game.Heroes.PickTalent(player, talent.Tier, talent.Talent);
+                break;
             case ReviveHeroCommand revive:
                 _game.Heroes.Revive(player, revive.Building);
                 break;
@@ -240,8 +243,13 @@ public sealed class CommandProcessor
             return;
         }
         var unit = building.Def.TrainableUnits.FirstOrDefault(u => u.Id == command.Unit);
-        if (unit == null || building.Queue.Count >= Building.MaxQueue)
+        if (unit == null || !unit.AllowsRace(player.Race.Id) || building.Queue.Count >= Building.MaxQueue)
         {
+            return;
+        }
+        if (!unit.TrainsAtLevel(building.Level))
+        {
+            _game.Notify(player, $"{unit.Name} needs a level {unit.RequiresTrainerLevel} {building.Def.Name}.", NoticeTone.Warning, null);
             return;
         }
         if (!player.Stock.TrySpend(unit.CostAmounts))

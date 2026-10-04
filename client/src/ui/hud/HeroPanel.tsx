@@ -1,10 +1,11 @@
-import { canAfford, content, costList, itemDef, RESOURCE_NAMES, shutdownGold, unitDef, type Cost } from "../../content/content";
+import { canAfford, content, costList, heroKit, itemDef, RESOURCE_NAMES, shutdownGold, unitDef, type Cost, type TalentDef } from "../../content/content";
 import type { HeroState } from "../../net/protocol";
 import { session } from "../../session";
 import { Icon, Portrait } from "../icons";
 import { store, useHud } from "../store";
-import { AbilityTip, HeroStatTip, ItemTip, ReviveTip, TextTip } from "../tooltip/Tips";
+import { AbilityTip, HeroStatTip, ItemTip, ReviveTip, TalentTip, TextTip } from "../tooltip/Tips";
 import { tipProps } from "../tooltip/use-tip";
+import { openTalentTier, pickedTalents, talentIcon } from "./hero-kit";
 import { heroStatRows } from "./hero-stats";
 
 export function HeroPanel() {
@@ -13,9 +14,10 @@ export function HeroPanel() {
   if (!hero?.stats) return <div className="hero-panel panel" />;
   const def = unitDef(hero.unit);
   const dead = hero.id === 0;
+  const openTier = openTalentTier(hero.unit, hero.level, hero.talents);
   return (
     <div className="hero-panel panel">
-      {(hero.unspentPoints > 0 || dead) && <HeroActions hero={hero} />}
+      {(hero.unspentPoints > 0 || dead || openTier >= 0) && <HeroActions hero={hero} openTier={openTier} />}
       <button
         className="hero-portrait"
         onClick={() => session.game?.selectHero(true)}
@@ -31,6 +33,7 @@ export function HeroPanel() {
         <div className="hero-name">
           {def.name}
           {hero.streak > 0 && <StreakBadge streak={hero.streak} />}
+          <Talents hero={hero} />
         </div>
         <HealthBar hero={hero} />
         <XpBar hero={hero} />
@@ -67,8 +70,8 @@ function HealthBar({ hero }: { hero: HeroState }) {
   const { hp, maxHp, regen, regenerating } = hero.stats;
   const ratio = maxHp > 0 ? Math.min(1, hp / maxHp) : 0;
   const tip = regenerating
-    ? `${Math.ceil(hp)} / ${Math.round(maxHp)} health, regenerating ${regen.toFixed(1)} per second.`
-    : `${Math.ceil(hp)} / ${Math.round(maxHp)} health. Regenerates after ${content.rules.heroRegenDelaySeconds} s without taking damage.`;
+    ? `${Math.ceil(hp)} / ${Math.ceil(maxHp)} health, regenerating ${regen.toFixed(1)} per second.`
+    : `${Math.ceil(hp)} / ${Math.ceil(maxHp)} health. Regenerates after ${content.rules.heroRegenDelaySeconds} s without taking damage.`;
   return (
     <div className={`bar hp hero-hp ${regenerating ? "regen" : ""}`} {...tipProps(() => <TextTip title="Health" text={tip} />)}>
       <div style={{ width: `${ratio * 100}%` }} />
@@ -88,10 +91,33 @@ function XpBar({ hero }: { hero: HeroState }) {
   );
 }
 
+/** One badge per talent tier: the pick, or a lock showing the level that opens it. */
+function Talents({ hero }: { hero: HeroState }) {
+  const picked = pickedTalents(hero.unit, hero.talents);
+  const levels = content.rules.heroTalentLevels;
+  return (
+    <span className="hero-talents">
+      {picked.map((talent, tier) => {
+        const level = levels[tier] ?? 0;
+        return talent ? (
+          <span key={tier} className="hero-talent picked" {...tipProps(() => <TalentTip talent={talent} tierLevel={level} state="picked" />)}>
+            <Icon id={talentIcon(talent)} />
+          </span>
+        ) : (
+          <span key={tier} className="hero-talent" {...tipProps(() => <TextTip title="Talent" text={`At hero level ${level} pick one of two talents for your ${unitDef(hero.unit).name}. Talents last the whole match, through death.`} />)}>
+            {level}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function Abilities({ hero, dead }: { hero: HeroState; dead: boolean }) {
+  const talents = pickedTalents(hero.unit, hero.talents);
   return (
     <div className="abilities">
-      {content.abilities.map((ability, slot) => {
+      {heroKit(hero.unit).map((ability, slot) => {
         const locked = hero.level < ability.unlockLevel;
         const cooldown = hero.cooldowns[slot] ?? 0;
         return (
@@ -99,7 +125,7 @@ function Abilities({ hero, dead }: { hero: HeroState; dead: boolean }) {
             key={ability.id}
             className={`ability ${locked ? "locked" : ""}`}
             disabled={dead}
-            {...tipProps(() => <AbilityTip ability={ability} heroLevel={hero.level} cooldownFactor={hero.cooldownFactor} />)}
+            {...tipProps(() => <AbilityTip ability={ability} heroLevel={hero.level} cooldownFactor={hero.cooldownFactor} talents={talents} />)}
             onClick={() => session.game?.castAbility(slot, false)}
           >
             <span>
@@ -158,12 +184,16 @@ function Inventory({ hero }: { hero: HeroState }) {
   );
 }
 
-/** The strip above the panel: stat picks while points are banked, and the revive countdown or button while fallen. */
-function HeroActions({ hero }: { hero: HeroState }) {
+/**
+ * The strip above the panel: the open talent tier's choice, stat picks while points are banked, and the revive
+ * countdown or button while fallen.
+ */
+function HeroActions({ hero, openTier }: { hero: HeroState; openTier: number }) {
   const stock = useHud((s) => s.stats?.resources ?? []);
   const dead = hero.id === 0;
   return (
     <div className="hero-actions panel">
+      {openTier >= 0 && <TalentChoice hero={hero} tier={openTier} />}
       {hero.unspentPoints > 0 && (
         <div className="hero-points">
           <span className="hero-points-count" {...tipProps(() => <TextTip title="Stat points" text="Each level gives one point. Spend it on a stat; unspent points are kept, and ranks last through death." />)}>
@@ -179,6 +209,24 @@ function HeroActions({ hero }: { hero: HeroState }) {
         </div>
       )}
       {dead && <ReviveButton hero={hero} stock={stock} />}
+    </div>
+  );
+}
+
+/** The two talents of an open tier; one click takes a talent for good. */
+function TalentChoice({ hero, tier }: { hero: HeroState; tier: number }) {
+  const options: TalentDef[] = unitDef(hero.unit).talents?.[tier] ?? [];
+  const level = content.rules.heroTalentLevels[tier] ?? 0;
+  return (
+    <div className="hero-talent-pick">
+      <span className="hero-points-count" {...tipProps(() => <TextTip title="Talent" text="Your hero reached a talent level. Take one of the two talents; it lasts the whole match, through death." />)}>
+        <Icon id="talent" />
+      </span>
+      {options.map((talent) => (
+        <button key={talent.id} className="btn btn-small talent-option" onClick={() => session.game?.pickTalent(tier, talent.id)} {...tipProps(() => <TalentTip talent={talent} tierLevel={level} state="open" />)}>
+          <Icon id={talentIcon(talent)} /> {talent.name}
+        </button>
+      ))}
     </div>
   );
 }

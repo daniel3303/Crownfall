@@ -1,9 +1,10 @@
-import { buildingDef, content } from "../content/content";
+import { buildingDef, heroKit } from "../content/content";
 import { canPlace, isLineBuilding, lineCells, placementOrigin } from "../game/placement";
 import type { ClientWorld, WorldEntity } from "../game/world";
 import type { GroundCircle } from "../render/overlay";
 import type { GameRenderer } from "../render/renderer";
-import type { InputMode } from "../ui/store";
+import { abilityNumbers, pickedTalents } from "../ui/hud/hero-kit";
+import { store, type InputMode } from "../ui/store";
 
 /** Draws what the cursor would do: the foundation ghost, ability range and blast circles, and rally points. */
 export class CursorPreview {
@@ -44,10 +45,13 @@ export class CursorPreview {
       const rally = this.rallies.get(selectedBuilding.id);
       if (rally) circles.push({ x: rally.x, y: rally.y, radius: 0.6, color: "rgba(253,224,71,0.9)" });
     }
-    if (mode.kind === "ability") {
-      const ability = content.abilities[mode.slot];
-      if (hero && ability?.range) circles.push({ x: hero.renderX, y: hero.renderY, radius: ability.range, color: "rgba(253,224,71,0.7)" });
-      if (ground && ability) circles.push({ x: ground.x, y: ground.y, radius: ability.radius, color: "rgba(248,113,113,0.95)" });
+    const state = store.get().stats?.hero;
+    const ability = mode.kind === "ability" ? heroKit(this.world.heroOf(this.world.you))[mode.slot] : undefined;
+    if (ability) {
+      // The circles follow the talents, so a widened or longer-reaching ability previews what it will hit.
+      const numbers = abilityNumbers(ability, state?.level ?? 1, state ? pickedTalents(state.unit, state.talents) : []);
+      if (hero && numbers.range) circles.push({ x: hero.renderX, y: hero.renderY, radius: numbers.range, color: "rgba(253,224,71,0.7)" });
+      if (ground && numbers.radius > 0) circles.push({ x: ground.x, y: ground.y, radius: numbers.radius, color: "rgba(248,113,113,0.95)" });
     }
     this.renderer.overlay.circles = circles;
   }

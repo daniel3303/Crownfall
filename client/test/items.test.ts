@@ -23,6 +23,7 @@ function hero(patch: Partial<HeroState> = {}): HeroState {
     items: [null, null, null, null, null, null],
     canShop: true,
     streak: 0,
+    talents: [null, null, null],
     cooldownFactor: 1,
     stats: { hp: 300, maxHp: 300, attack: 20, cooldown: 1, range: 0.6, speed: 2.6, armorMelee: 2, armorPierce: 2, lifeSteal: 0, sight: 16, regen: 0, regenerating: false },
     ...patch,

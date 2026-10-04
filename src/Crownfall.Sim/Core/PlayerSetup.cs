@@ -7,4 +7,7 @@ public sealed class PlayerSetup
     public int Team { get; init; }
     public string Race { get; init; }
     public bool IsBot { get; init; }
+
+    /// <summary>Id of the race's hero the seat leads; null for the race's classic hero.</summary>
+    public string Hero { get; init; }
 }

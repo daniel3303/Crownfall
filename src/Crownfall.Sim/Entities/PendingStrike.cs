@@ -11,5 +11,11 @@ public sealed class PendingStrike
     public AbilityDef Ability { get; init; }
     public Vector2 Point { get; init; }
     public float Damage { get; init; }
+
+    /// <summary>Blast radius with the caster's talents applied.</summary>
+    public float Radius { get; init; }
+
+    /// <summary>Seconds each unit struck is stunned; 0 for none.</summary>
+    public float Stun { get; init; }
     public int ImpactTick { get; init; }
 }

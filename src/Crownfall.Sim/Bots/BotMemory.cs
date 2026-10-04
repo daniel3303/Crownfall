@@ -41,8 +41,8 @@ public sealed class BotMemory
         _forgetTicks = profile.MemorySeconds * game.Content.Rules.TickRate;
         _mixDecay = MathF.Pow(0.5f, profile.ThinkTicks / (float)Math.Max(1, _forgetTicks));
         _mix = new float[game.Content.Units.Count];
-        _averagePower = model.Military.Count == 0 ? 0 : model.Military.Average(model.Power);
-        _averageTrainSeconds = model.Military.Count == 0 ? 1 : MathF.Max(1, model.Military.Average(u => u.TrainTime));
+        _averagePower = model.Roster.Count == 0 ? 0 : model.Roster.Average(model.Power);
+        _averageTrainSeconds = model.Roster.Count == 0 ? 1 : MathF.Max(1, model.Roster.Average(u => u.TrainTime));
         CandidateStarts = InferEnemyStarts(game, player);
     }
 
@@ -201,7 +201,7 @@ public sealed class BotMemory
         }
         if (!_casts.TryGetValue(ability.Hero, out var casts))
         {
-            casts = Enumerable.Repeat(int.MinValue / 2, _game.Content.Abilities.Count).ToArray();
+            casts = Enumerable.Repeat(int.MinValue / 2, _game.Content.MaxKitSize).ToArray();
             _casts[ability.Hero] = casts;
         }
         if (ability.Slot >= 0 && ability.Slot < casts.Length)
@@ -230,11 +230,11 @@ public sealed class BotMemory
     /// </summary>
     public int AbilityReadyTick(Unit hero, int slot)
     {
-        if (!_casts.TryGetValue(hero.Id, out var casts) || slot >= casts.Length)
+        if (!_casts.TryGetValue(hero.Id, out var casts) || slot >= casts.Length || slot >= hero.Def.Kit.Count)
         {
             return int.MinValue / 2;
         }
-        var ability = _game.Content.Abilities[slot];
+        var ability = hero.Def.Kit[slot];
         var level = hero.Hero?.Level ?? 1;
         var rules = _game.Content.Rules;
         return casts[slot] + (int)(ability.Cooldown * rules.HeroCooldownFactor(level) * rules.TickRate);

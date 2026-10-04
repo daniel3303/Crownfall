@@ -309,6 +309,63 @@ public sealed class HeroSystem
         }
     }
 
+    /// <summary>
+    /// Fills a talent tier the hero's level has opened with one of its options. Talents live on the hero state, so
+    /// they outlast death, and one that adds health grows a living hero at once.
+    /// </summary>
+    public void PickTalent(Player player, int tier, string talentId)
+    {
+        var state = player.HeroState;
+        if (tier < 0 || tier >= state.Talents.Length || state.Talents[tier] != null)
+        {
+            return;
+        }
+        if (state.Level < state.TalentLevels[tier])
+        {
+            _game.Notify(player, $"These talents open at hero level {state.TalentLevels[tier]}.", NoticeTone.Warning, null);
+            return;
+        }
+        var talent = state.Def.Talents[tier].FirstOrDefault(t => t.Id == talentId);
+        if (talent == null)
+        {
+            return;
+        }
+        state.Talents[tier] = talent;
+        if (talent.Hp > 0 && player.Hero is { IsAlive: true } hero)
+        {
+            Grow(hero, talent.Hp);
+        }
+    }
+
+    /// <summary>
+    /// Puts another of the race's heroes in place of one that has earned nothing yet, as when a player takes over a bot
+    /// seat at the start of a match; the new hero stands where the old one stood. Returns false when refused.
+    /// </summary>
+    public bool TryChangeHero(Player player, Content.UnitDef def)
+    {
+        var state = player.HeroState;
+        if (def == state.Def || !player.Race.HeroUnits.Contains(def) || !state.IsFresh)
+        {
+            return false;
+        }
+        var old = player.Hero;
+        player.HeroState = MatchSetup.NewHeroState(_game.Content, def);
+        player.HeroState.ReviveTick = state.ReviveTick;
+        if (old == null)
+        {
+            return true;
+        }
+        var standing = old.IsAlive;
+        player.Hero = null;
+        _game.Entities.MarkRemoved(old);
+        if (standing)
+        {
+            var hero = SpawnHero(player, old.Position);
+            hero.Facing = old.Facing;
+        }
+        return true;
+    }
+
     private static void Grow(Unit hero, float hp)
     {
         hero.MaxHp += hp;

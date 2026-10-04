@@ -25,6 +25,7 @@ public static class ClientMessageParser
         ["ability"] = typeof(AbilityCommand),
         ["tribute"] = typeof(TributeCommand),
         ["heroStat"] = typeof(HeroStatCommand),
+        ["pickTalent"] = typeof(PickTalentCommand),
         ["reviveHero"] = typeof(ReviveHeroCommand),
         ["buyItem"] = typeof(BuyItemCommand),
         ["sellItem"] = typeof(SellItemCommand),
@@ -79,6 +80,7 @@ public static class ClientMessageParser
             "team" => new LobbyRequest(LobbyAction.SwitchTeam, root.Value<int>("team"), null),
             "race" => new LobbyRequest(LobbyAction.SetRace, 0, root.Value<string>("race")),
             "name" => new LobbyRequest(LobbyAction.SetName, 0, null, root.Value<string>("name")),
+            "hero" => new LobbyRequest(LobbyAction.SetHero, 0, null, null, root.Value<string>("hero")),
             _ => null,
         };
     }

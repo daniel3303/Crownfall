@@ -2,7 +2,8 @@ import type { EndMessage } from "../net/protocol";
 import { session } from "../session";
 import { playerColor, TEAM_NAMES } from "./palette";
 import { useHud } from "./store";
-import { Icon } from "./icons";
+import { content } from "../content/content";
+import { Icon, Portrait } from "./icons";
 import { EndRewards } from "./meta/EndRewards";
 import { MatchGraphs } from "./meta/MatchGraphs";
 import { useMeta } from "./meta/meta-store";
@@ -53,7 +54,12 @@ export function EndScreen({ end }: { end: EndMessage }) {
                 <td>{p.losses}</td>
                 <td>{p.unitsTrained}</td>
                 <td>{p.heroKills ?? 0}</td>
-                <td>Lv {p.heroLevel}</td>
+                <td>
+                  <span className="end-hero">
+                    {p.hero && <Portrait id={p.hero} />}
+                    {content.units.find((u) => u.id === p.hero)?.name ?? ""} Lv {p.heroLevel}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>

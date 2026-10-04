@@ -12,11 +12,15 @@ public sealed class ContentDb
 {
     private const int MaxKinds = 255;
 
+    // A talent tier is a choice of one of two; the HUD and the bot profiles assume exactly two options.
+    private const int TalentOptions = 2;
+
     private readonly Dictionary<string, UnitDef> _units;
     private readonly Dictionary<string, BuildingDef> _buildings;
     private readonly Dictionary<string, NodeDef> _nodes;
     private readonly Dictionary<string, RaceDef> _races;
     private readonly Dictionary<string, ItemDef> _items;
+    private readonly Dictionary<string, AbilityDef> _abilities;
     private int[] _heroReviveBase;
     private int[] _heroRevivePerLevel;
 
@@ -28,6 +32,7 @@ public sealed class ContentDb
         _nodes = content.Nodes.ToDictionary(n => n.Id);
         _races = content.Races.ToDictionary(r => r.Id);
         _items = content.Items.ToDictionary(i => i.Id);
+        _abilities = content.Abilities.ToDictionary(a => a.Id);
         Index();
     }
 
@@ -42,6 +47,9 @@ public sealed class ContentDb
     public IReadOnlyList<ItemDef> Items => Content.Items;
     public float TickSeconds => 1f / Rules.TickRate;
     public int[] StartingResources { get; private set; }
+
+    /// <summary>The most abilities any hero's kit holds; slots past a hero's own kit are empty.</summary>
+    public int MaxKitSize { get; private set; }
 
     /// <summary>The center boss's unit, or null when the rules have no dragon.</summary>
     public UnitDef DragonUnit { get; private set; }
@@ -124,9 +132,9 @@ public sealed class ContentDb
         return id != null && _races.ContainsKey(id);
     }
 
-    public AbilityDef Ability(int slot)
+    public AbilityDef Ability(string id)
     {
-        return slot >= 0 && slot < Abilities.Count ? Abilities[slot] : null;
+        return _abilities.TryGetValue(id, out var def) ? def : throw new KeyNotFoundException($"Unknown ability '{id}'.");
     }
 
     /// <summary>Index of a hero stat by id, or -1.</summary>
@@ -167,6 +175,36 @@ public sealed class ContentDb
             levels.Add(levels[^1].Next(step));
         }
         return levels;
+    }
+
+    /// <summary>Resolves a hero's kit and checks its talent tiers line up with the rules' talent levels.</summary>
+    private void ResolveHero(UnitDef unit)
+    {
+        unit.Kit = unit.Abilities.Select(Ability).ToList();
+        if (!unit.IsHero)
+        {
+            return;
+        }
+        if (unit.Talents.Count != Rules.HeroTalentLevels.Count)
+        {
+            throw new InvalidDataException($"Hero '{unit.Id}' needs {Rules.HeroTalentLevels.Count} talent tiers.");
+        }
+        if (unit.Talents.Any(tier => tier.Count != TalentOptions))
+        {
+            throw new InvalidDataException($"Each talent tier of '{unit.Id}' needs {TalentOptions} options.");
+        }
+        var ids = new HashSet<string>();
+        foreach (var talent in unit.Talents.SelectMany(t => t))
+        {
+            if (!ids.Add(talent.Id))
+            {
+                throw new InvalidDataException($"Hero '{unit.Id}' lists talent '{talent.Id}' twice.");
+            }
+            if (talent.Ability != null && !unit.Abilities.Contains(talent.Ability))
+            {
+                throw new InvalidDataException($"Talent '{talent.Id}' of '{unit.Id}' modifies an ability outside its kit.");
+            }
+        }
     }
 
     private void Index()
@@ -211,9 +249,23 @@ public sealed class ContentDb
         {
             throw new InvalidDataException($"Content defines {kind} kinds; the protocol supports {MaxKinds}.");
         }
+        foreach (var unit in Content.Units)
+        {
+            ResolveHero(unit);
+            if (unit.Races.Any(r => !_races.ContainsKey(r)))
+            {
+                throw new InvalidDataException($"Unit '{unit.Id}' names an unknown race.");
+            }
+        }
+        MaxKitSize = Content.Units.Max(u => u.Kit.Count);
         foreach (var race in Content.Races)
         {
             race.HeroUnit = Unit(race.Hero);
+            race.HeroUnits = (race.Heroes.Count > 0 ? race.Heroes : [race.Hero]).Select(Unit).ToList();
+            if (!race.HeroUnits.Contains(race.HeroUnit) || race.HeroUnits.Any(h => !h.IsHero))
+            {
+                throw new InvalidDataException($"Race '{race.Id}' must list its classic hero among its heroes, and only heroes.");
+            }
         }
         StartingResources = Resources.FromDictionary(Rules.StartingResources);
         MarketBasePrices = Array.ConvertAll(Resources.FromDictionary(Rules.Market.Prices), price => (float)price);

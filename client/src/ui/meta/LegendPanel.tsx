@@ -14,16 +14,16 @@ const SLOTS: { slot: CosmeticSlot; label: string }[] = [
 ];
 
 /** Profile level, XP toward the next level and the cosmetics it has unlocked, with pickers to wear them. */
-export function LegendPanel({ name, race }: { name: string; race: string }) {
+export function LegendPanel({ name, race, hero }: { name: string; race: string; hero?: string }) {
   const meta = useMeta((v) => v.meta);
   const look = useLook();
   const info = levelInfo(meta.xp);
-  const hero = content.races.find((r) => r.id === race)?.hero ?? "";
+  const portrait = hero ?? content.races.find((r) => r.id === race)?.hero ?? "";
   return (
     <div className="legend">
       <div className="legend-card" style={bannerStyle(look.banner)}>
         <span className="legend-portrait" style={frameStyle(look.frame)}>
-          <Portrait id={hero} />
+          <Portrait id={portrait} />
         </span>
         <div className="legend-who">
           <strong>

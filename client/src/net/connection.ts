@@ -15,9 +15,9 @@ export class Connection {
   private closedByUs = false;
   latencyMs = 0;
 
-  constructor(matchId: string, name: string, race: string, private readonly handlers: ConnectionHandlers) {
+  constructor(matchId: string, name: string, race: string, hero: string, private readonly handlers: ConnectionHandlers) {
     const scheme = location.protocol === "https:" ? "wss" : "ws";
-    const query = new URLSearchParams({ match: matchId, name, race });
+    const query = new URLSearchParams({ match: matchId, name, race, hero });
     this.socket = new WebSocket(`${scheme}://${location.host}/ws?${query}`);
     this.socket.binaryType = "arraybuffer";
     this.socket.onopen = () => {
@@ -44,6 +44,10 @@ export class Connection {
 
   setRace(race: string): void {
     this.send({ t: "lobby", action: "race", race });
+  }
+
+  setHero(hero: string): void {
+    this.send({ t: "lobby", action: "hero", hero });
   }
 
   setName(name: string): void {

@@ -20,6 +20,8 @@ export interface EntityView {
   /** Upgrade percent done while upgrading. */
   upgradeProgress: number;
   mine: boolean;
+  /** The owner's race, for what its buildings train; none for neutral entities. */
+  race?: string;
   category: "unit" | "building" | "node";
 }
 

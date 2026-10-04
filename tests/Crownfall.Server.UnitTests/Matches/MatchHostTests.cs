@@ -5,6 +5,7 @@ using Crownfall.Server.UnitTests.Support;
 using Crownfall.Sim.Commands;
 using Crownfall.Sim.Content;
 using Crownfall.Sim.Core;
+using Crownfall.Sim.Events;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Crownfall.Server.UnitTests.Matches;
@@ -244,6 +245,200 @@ public class MatchHostTests
 
         json.Should().Contain("\"durationSeconds\":").And.Contain("\"timeline\":{\"intervalSeconds\":10,\"seconds\":[");
         json.Should().Contain("\"heroKills\":").And.Contain("\"soldiersTrained\":").And.Contain("\"army\":[");
+    }
+
+    [Fact]
+    public void SetHero_InLobby_ShowsThePickOnTheSeatAndLeadsItInTheMatch()
+    {
+        using var match = CustomMatch(perTeam: 1);
+        var host = new FakeClient();
+        Join(match, host, "Ana");
+        var pick = Content.Race(SeatOf(host, "Ana").Race).HeroUnits[1].Id;
+
+        PickHero(match, host, pick);
+        var seat = SeatOf(host, "Ana");
+        Lobby(match, host, LobbyAction.Start);
+
+        seat.Hero.Should().Be(pick);
+        match.Game.Players[host.Last<WelcomeMessage>().You].HeroState.Def.Id.Should().Be(pick);
+        host.Last<WelcomeMessage>().Players.Single(p => p.Name == "Ana").Hero.Should().Be(pick);
+    }
+
+    [Fact]
+    public void SetHero_OfAnotherRace_KeepsTheSeatsHero()
+    {
+        using var match = CustomMatch(perTeam: 1);
+        var host = new FakeClient();
+        Join(match, host, "Ana");
+        var race = SeatOf(host, "Ana").Race;
+        var foreign = Content.Races.First(r => r.Id != race).HeroUnits[1].Id;
+
+        PickHero(match, host, foreign);
+
+        SeatOf(host, "Ana").Hero.Should().Be(Content.Race(race).Hero);
+    }
+
+    [Fact]
+    public void SetRace_DropsAPickTheNewRaceCannotField()
+    {
+        using var match = CustomMatch(perTeam: 1);
+        var host = new FakeClient();
+        Join(match, host, "Ana");
+        var race = SeatOf(host, "Ana").Race;
+        var other = Content.Races.First(r => r.Id != race);
+        PickHero(match, host, Content.Race(race).HeroUnits[2].Id);
+
+        match.Enqueue(new MessageInbound(host, new LobbyRequest(LobbyAction.SetRace, 0, other.Id)));
+        match.Tick();
+
+        SeatOf(host, "Ana").Race.Should().Be(other.Id);
+        SeatOf(host, "Ana").Hero.Should().Be(other.Hero);
+    }
+
+    [Fact]
+    public void Join_LobbyWithAHeroPick_TakesTheRaceAndTheHero()
+    {
+        using var match = CustomMatch(perTeam: 1);
+        var host = new FakeClient();
+
+        match.Enqueue(new JoinInbound(host, "Ana", "orcs", "shaman"));
+        match.Tick();
+
+        SeatOf(host, "Ana").Race.Should().Be("orcs");
+        SeatOf(host, "Ana").Hero.Should().Be("shaman");
+    }
+
+    [Fact]
+    public void Lobby_BotSeats_ShowTheHeroTheSeedPicksForThem()
+    {
+        using var match = CustomMatch();
+        var host = new FakeClient();
+        Join(match, host, "Ana");
+
+        var bots = host.Last<LobbyMessage>().Seats.Where(s => s.IsBot).ToList();
+
+        bots.Should().NotBeEmpty();
+        bots.Should().OnlyContain(s => s.Hero == HeroRoster.BotPick(Content.Race(s.Race), match.Config.Seed, s.Index).Id);
+    }
+
+    [Fact]
+    public void Start_BotSeats_LeadTheHeroTheLobbyShowedThem()
+    {
+        using var match = CustomMatch();
+        var host = new FakeClient();
+        Join(match, host, "Ana");
+        var bots = host.Last<LobbyMessage>().Seats.Where(s => s.IsBot).ToList();
+
+        Lobby(match, host, LobbyAction.Start);
+
+        bots.Should().NotBeEmpty();
+        bots.Select(s => match.Game.Players[s.Index].HeroState.Def.Id).Should().Equal(bots.Select(s => s.Hero));
+    }
+
+    [Fact]
+    public void SetHero_AfterTheMatchStarted_IsIgnored()
+    {
+        using var match = CustomMatch(perTeam: 1);
+        var host = new FakeClient();
+        Join(match, host, "Ana");
+        Lobby(match, host, LobbyAction.Start);
+        var player = match.Game.Players[host.Last<WelcomeMessage>().You];
+        var hero = player.HeroState.Def;
+
+        PickHero(match, host, player.Race.HeroUnits.First(h => h != hero).Id);
+
+        player.HeroState.Def.Should().BeSameAs(hero);
+        player.Hero.Def.Should().BeSameAs(hero);
+    }
+
+    [Fact]
+    public void Join_RunningQuickPlayWithAHeroPick_LeadsThatHeroOnASeatOfItsRace()
+    {
+        using var match = QuickMatch();
+        var client = new FakeClient();
+
+        match.Enqueue(new JoinInbound(client, "Ana", "orcs", "blademaster"));
+        match.Tick();
+
+        var player = match.Game.Players[client.Last<WelcomeMessage>().You];
+        player.Race.Id.Should().Be("orcs");
+        player.HeroState.Def.Id.Should().Be("blademaster");
+        player.Hero.Def.Id.Should().Be("blademaster");
+        match.Game.Entities.Units.Count(u => u.Owner == player && u.IsHero && u.IsAlive).Should().Be(1);
+    }
+
+    [Fact]
+    public void Join_RunningQuickPlayAfterTheBotsHeroEarnedXp_KeepsThatHero()
+    {
+        using var match = QuickMatch();
+        var bot = match.Game.Players.Single(p => p.Race.Id == "orcs");
+        match.Game.Heroes.AddXp(bot, 10);
+        var hero = bot.HeroState.Def;
+        var pick = bot.Race.HeroUnits.First(h => h != hero).Id;
+        var client = new FakeClient();
+
+        match.Enqueue(new JoinInbound(client, "Ana", "orcs", pick));
+        match.Tick();
+
+        match.Game.Players[client.Last<WelcomeMessage>().You].HeroState.Def.Should().BeSameAs(hero);
+    }
+
+    [Fact]
+    public void Join_RunningQuickPlayAfterTheBotsHeroEarnedXp_ANoticeTellsTheNewcomerWhy()
+    {
+        using var match = QuickMatch();
+        var bot = match.Game.Players.Single(p => p.Race.Id == "orcs");
+        match.Game.Heroes.AddXp(bot, 10);
+        var pick = bot.Race.HeroUnits.First(h => h != bot.HeroState.Def);
+        var client = new FakeClient();
+
+        match.Enqueue(new JoinInbound(client, "Ana", "orcs", pick.Id));
+        for (var tick = 0; tick <= Content.Rules.TickRate; tick++)
+        {
+            match.Tick();
+        }
+
+        var notices = client.Messages.OfType<EventsMessage>().SelectMany(m => m.Events).OfType<NoticeEvent>().ToList();
+        notices.Should().ContainSingle(n => n.Tone == NoticeTone.Warning && n.Text.Contains(bot.HeroState.Def.Name) && n.Text.Contains(pick.Name));
+    }
+
+    [Fact]
+    public void Join_RunningQuickPlayWithAHeroPick_RaisesNoNoticeWhenThePickLeads()
+    {
+        using var match = QuickMatch();
+        var client = new FakeClient();
+
+        match.Enqueue(new JoinInbound(client, "Ana", "orcs", "blademaster"));
+        for (var tick = 0; tick <= Content.Rules.TickRate; tick++)
+        {
+            match.Tick();
+        }
+
+        client.Messages.OfType<EventsMessage>().SelectMany(m => m.Events).OfType<NoticeEvent>().Should().NotContain(n => n.Text.Contains("this seat", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GameOver_EndListsEachPlayersHero()
+    {
+        using var match = QuickMatch();
+        var client = new FakeClient();
+        Join(match, client, "Ana");
+
+        match.Game.End(0);
+        match.Tick();
+
+        client.Last<EndMessage>().Players.Select(p => p.Hero).Should().Equal(match.Game.Players.Select(p => p.HeroState.Def.Id));
+    }
+
+    private static SeatView SeatOf(FakeClient client, string name)
+    {
+        return client.Last<LobbyMessage>().Seats.Single(s => s.Name == name);
+    }
+
+    private static void PickHero(MatchHost match, FakeClient client, string hero)
+    {
+        match.Enqueue(new MessageInbound(client, new LobbyRequest(LobbyAction.SetHero, 0, null, null, hero)));
+        match.Tick();
     }
 
     private static MatchHost CustomMatch(int perTeam = 2)

@@ -22,6 +22,7 @@ function hero(ranks: Record<string, number> = {}): HeroState {
     items: [null, null, null, null, null, null],
     canShop: false,
     streak: 0,
+    talents: [null, null, null],
     cooldownFactor: 0.94,
     stats: { hp: 300, maxHp: 410, attack: 25.5, cooldown: 1.0, range: 0.6, speed: 2.6, armorMelee: 3, armorPierce: 3, lifeSteal: 0.16, sight: 16, regen: 10.25, regenerating: true },
   };
@@ -49,6 +50,13 @@ describe("hero stats", () => {
 
     expect(rows.find((r) => r.id === "attackSpeed")!.value).toBe("1.00/s");
     expect(rows.find((r) => r.id === "regen")!.value).toBe("+10.3/s");
+  });
+
+  it("shows a full hero with a fractional maximum at equal current and maximum health", () => {
+    const full = hero();
+    full.stats = { ...full.stats, hp: 1230.31, maxHp: 1230.31 };
+
+    expect(heroStatRows(full).find((r) => r.id === "maxHealth")!.value).toBe("1231/1231");
   });
 
   it("lists only the resources a cost uses", () => {

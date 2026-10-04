@@ -5,6 +5,7 @@ using Crownfall.Sim;
 using Crownfall.Sim.Commands;
 using Crownfall.Sim.Content;
 using Crownfall.Sim.Core;
+using Crownfall.Sim.Events;
 
 namespace Crownfall.Server.Matches;
 
@@ -20,6 +21,9 @@ public sealed class MatchHost : IDisposable
     private readonly ConcurrentQueue<Inbound> _inbox = new();
     private readonly List<CommandEnvelope> _pendingCommands = [];
     private readonly Dictionary<IMatchClient, int> _commandsThisTick = [];
+
+    // Raised a second after the join, once the newcomer's game view is up to show them.
+    private readonly List<(IMatchClient Client, string Text, int Tick)> _joinNotices = [];
     private readonly ContentDb _content;
     private readonly ILogger _logger;
     private readonly TimeProvider _time;
@@ -64,6 +68,13 @@ public sealed class MatchHost : IDisposable
     internal IReadOnlyList<Seat> Seats => _seats.All;
     internal Game Game => _game;
     internal Seat HostSeat => _seats.Host;
+
+    /// <summary>The hero a seat leads: a human's valid pick or the race's classic hero, and for a bot a draw from the seed.</summary>
+    internal string HeroOf(Seat seat)
+    {
+        var race = _content.Race(seat.Race);
+        return seat.IsBot ? HeroRoster.BotPick(race, Config.Seed, seat.Index).Id : seat.Hero ?? race.Hero;
+    }
 
     public void Start()
     {
@@ -168,7 +179,8 @@ public sealed class MatchHost : IDisposable
         {
             return;
         }
-        var seat = Phase == MatchPhase.Ended ? null : _seats.Take(join.Client, join.Name);
+        // A running match's seats keep their races, so a newcomer is steered toward one of the race it asked for.
+        var seat = Phase == MatchPhase.Ended ? null : _seats.Take(join.Client, join.Name, Phase == MatchPhase.Playing ? join.Race : null);
         if (seat == null)
         {
             join.Client.Send(new ErrorMessage { Message = Phase == MatchPhase.Ended ? "This match has ended." : "This match is full." });
@@ -178,11 +190,17 @@ public sealed class MatchHost : IDisposable
         if (Phase == MatchPhase.Lobby)
         {
             seat.Race = join.Race ?? seat.Race;
+            seat.Hero = ValidHero(seat.Race, join.Hero);
             BroadcastLobby();
             return;
         }
         _game.SetBotControl(seat.Player, false, seat.Name);
+        var refusal = TakeOverHero(seat, join.Hero);
         seat.Client.Send(_messages.Welcome(seat));
+        if (refusal != null)
+        {
+            _joinNotices.Add((seat.Client, refusal, _game.Tick + _content.Rules.TickRate));
+        }
     }
 
     private void HandleLeave(IMatchClient client)
@@ -220,6 +238,10 @@ public sealed class MatchHost : IDisposable
                 break;
             case LobbyAction.SetRace when _content.HasRace(request.Race):
                 seat.Race = request.Race;
+                seat.Hero = ValidHero(seat.Race, seat.Hero);
+                break;
+            case LobbyAction.SetHero when ValidHero(seat.Race, request.Hero) != null:
+                seat.Hero = request.Hero;
                 break;
             case LobbyAction.SetName:
                 seat.Name = PlayerNames.Sanitize(request.Name);
@@ -246,7 +268,7 @@ public sealed class MatchHost : IDisposable
 
     private void StartGame()
     {
-        var setups = _seats.All.Select(s => new PlayerSetup { Name = s.Name, Team = s.Team, Race = s.Race, IsBot = s.IsBot }).ToList();
+        var setups = _seats.All.Select(s => new PlayerSetup { Name = s.Name, Team = s.Team, Race = s.Race, IsBot = s.IsBot, Hero = HeroOf(s) }).ToList();
         _game = new Game(_content, Config, setups);
         _stats = new MatchStatsRecorder(_game);
         foreach (var seat in _seats.All)
@@ -260,10 +282,49 @@ public sealed class MatchHost : IDisposable
         }
     }
 
+    /// <summary>The pick when the race fields that hero, else null.</summary>
+    private string ValidHero(string race, string hero)
+    {
+        return hero != null && _content.Race(race).FindHero(hero) != null ? hero : null;
+    }
+
+    /// <summary>
+    /// A newcomer taking over a bot seat leads the hero it picked when the seat's race fields it and the bot's hero has
+    /// earned nothing yet, as in a quick play joined at its start; otherwise the bot's hero stays and the text says why.
+    /// </summary>
+    private string TakeOverHero(Seat seat, string hero)
+    {
+        var current = seat.Player.HeroState.Def;
+        if (hero == null || hero == current.Id)
+        {
+            return null;
+        }
+        var def = seat.Player.Race.FindHero(hero);
+        if (def == null)
+        {
+            return $"Your hero is not one of this seat's race, so you lead its {current.Name}.";
+        }
+        return _game.Heroes.TryChangeHero(seat.Player, def) ? null : $"This seat's {current.Name} has already earned experience or items, so it leads instead of your {def.Name}.";
+    }
+
+    /// <summary>Raises each due join notice as a notice event of this tick, for a newcomer still in its seat.</summary>
+    private void RaiseJoinNotices()
+    {
+        foreach (var notice in _joinNotices.Where(n => n.Tick <= _game.Tick))
+        {
+            if (_seats.Of(notice.Client)?.Player is { } player)
+            {
+                _game.Notify(player, notice.Text, NoticeTone.Warning, null);
+            }
+        }
+        _joinNotices.RemoveAll(n => n.Tick <= _game.Tick);
+    }
+
     private void StepGame()
     {
         _game.Step(_pendingCommands);
         _pendingCommands.Clear();
+        RaiseJoinNotices();
         _stats.Observe(_game);
         TickFanOut.Send(_game, _seats.Humans, _messages);
         if (_game.IsOver)

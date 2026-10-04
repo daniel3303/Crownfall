@@ -36,6 +36,16 @@ public class ClientMessageParserTests
     }
 
     [Fact]
+    public void Parse_PickTalent_ReadsTheTierAndTheTalent()
+    {
+        var message = ClientMessageParser.Parse("""{"t":"cmd","c":{"type":"pickTalent","tier":1,"talent":"crusadersVigor"}}""");
+
+        var pick = message.Should().BeOfType<CommandRequest>().Which.Command.Should().BeOfType<PickTalentCommand>().Subject;
+        pick.Tier.Should().Be(1);
+        pick.Talent.Should().Be("crusadersVigor");
+    }
+
+    [Fact]
     public void Parse_ReviveHero_DefaultsToAnyTownCenter()
     {
         var message = ClientMessageParser.Parse("""{"t":"cmd","c":{"type":"reviveHero"}}""");
@@ -92,6 +102,11 @@ public class ClientMessageParserTests
     [InlineData("""{"t":"lobby","action":"team","team":"blue"}""")]
     [InlineData("""{"t":"lobby","action":"name","name":{"first":"Daniel"}}""")]
     [InlineData("""{"t":"lobby","action":"name","name":["Daniel"]}""")]
+    [InlineData("""{"t":"cmd","c":{"type":"pickTalent","tier":"x","talent":"bulwark"}}""")]
+    [InlineData("""{"t":"cmd","c":{"type":"pickTalent","tier":99999999999,"talent":"bulwark"}}""")]
+    [InlineData("""{"t":"cmd","c":{"type":"pickTalent","tier":0,"talent":{}}}""")]
+    [InlineData("""{"t":"lobby","action":"hero","hero":{}}""")]
+    [InlineData("""{"t":"lobby","action":"hero","hero":[1]}""")]
     [InlineData("[]")]
     public void Parse_Malformed_ReturnsNull(string text)
     {
@@ -110,5 +125,15 @@ public class ClientMessageParserTests
     {
         ClientMessageParser.Parse("""{"t":"lobby","action":"name","name":"Daniel"}""")
             .Should().Be(new LobbyRequest(LobbyAction.SetName, 0, null, "Daniel"));
+    }
+
+    [Fact]
+    public void Parse_LobbyHero_ReadsTheHero()
+    {
+        var message = ClientMessageParser.Parse("""{"t":"lobby","action":"hero","hero":"archmage"}""");
+
+        var request = message.Should().BeOfType<LobbyRequest>().Subject;
+        request.Action.Should().Be(LobbyAction.SetHero);
+        request.Hero.Should().Be("archmage");
     }
 }

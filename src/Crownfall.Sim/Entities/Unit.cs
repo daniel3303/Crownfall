@@ -35,6 +35,8 @@ public sealed class Unit : Entity
     public bool IsLeashing { get; set; }
 
     public int BuffUntilTick { get; set; } = -1;
+
+    /// <summary>The ability buffing the unit; the ability system clears it once <see cref="BuffUntilTick"/> passes.</summary>
     public AbilityDef Buff { get; set; }
 
     /// <summary>Tick of the last hit taken; a hero regenerates once it has gone unhurt long enough.</summary>
@@ -54,10 +56,10 @@ public sealed class Unit : Entity
 
     public bool IsHero => Hero != null;
 
-    /// <summary>Armor against a damage type: the unit type's, plus what a hero's items add.</summary>
+    /// <summary>Armor against a damage type: the unit type's, plus what a hero's items and talents and a warding buff add.</summary>
     public float ArmorAgainst(DamageType type)
     {
-        return Def.Armor.Against(type) + (Hero?.ArmorBonus(type) ?? 0);
+        return Def.Armor.Against(type) + (Hero?.ArmorBonus(type) ?? 0) + (Buff?.ArmorBonus ?? 0);
     }
     public bool IsCarrying => CarryAmount > 0;
 
@@ -67,8 +69,8 @@ public sealed class Unit : Entity
     /// <summary>Attack multiplier the unit's rank grants.</summary>
     public float RankAttack { get; set; } = 1;
 
-    /// <summary>Attack with rank, hero bonuses and the owner's dragon buff, which multiplies all of it.</summary>
-    public float AttackDamage => (Def.Attack * RankAttack + (Hero?.BonusAttack ?? 0)) * (1 + (Owner?.AttackBuff ?? 0));
+    /// <summary>Attack with rank and hero bonuses, multiplied by the owner's dragon buff and any attack buff from an ability.</summary>
+    public float AttackDamage => (Def.Attack * RankAttack + (Hero?.BonusAttack ?? 0)) * (1 + (Owner?.AttackBuff ?? 0) + (Buff?.AttackBonus ?? 0));
 
     /// <summary>True while the owner's team holds the dragon's attack buff.</summary>
     public bool HasTeamBuff => Owner is { AttackBuff: > 0 };

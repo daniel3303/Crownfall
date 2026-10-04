@@ -100,6 +100,11 @@ export class ClientWorld {
     return this.teamOf(this.you);
   }
 
+  /** The hero a player leads, from the latest roster. */
+  heroOf(owner: number): string | undefined {
+    return this.players.find((p) => p.index === owner)?.hero;
+  }
+
   teamOf(owner: number): number {
     return this.players.find((p) => p.index === owner)?.team ?? -1;
   }

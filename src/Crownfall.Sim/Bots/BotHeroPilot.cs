@@ -6,9 +6,9 @@ using Crownfall.Sim.Entities;
 namespace Crownfall.Sim.Bots;
 
 /// <summary>
-/// Bot hero: casts abilities when they hit several enemies, or the dragon while the army slays it, supports an attack
-/// from behind once badly hurt, and between attacks rests at home until healed, then explores around home and clears
-/// the camps it finds.
+/// Bot hero: casts its kit's abilities when they hit several enemies, or the dragon while the army slays it, heals once
+/// enough allied health is missing, supports an attack from behind once badly hurt, blinking clear of a close enemy, and
+/// between attacks rests at home until healed, then explores around home and clears the camps it finds.
 /// </summary>
 public sealed class BotHeroPilot
 {
@@ -30,6 +30,9 @@ public sealed class BotHeroPilot
     private const float ChargeHealth = 0.5f;
     private const float MinChargeDistance = 3f;
     private const float ChargeGroupRadius = 2.5f;
+
+    // A heal is cast once it would restore at least this many times its per-unit amount across the hero and its allies.
+    private const float HealWorth = 1.5f;
     private const int ExploreDirections = 8;
     private static readonly float[] ExploreRadii = [22f, 34f];
 
@@ -104,6 +107,10 @@ public sealed class BotHeroPilot
         var danger = NearestEnemyFighter(hero.Position, DangerRadius);
         if (danger != null)
         {
+            if (TryEscape(hero, view))
+            {
+                return;
+            }
             var escape = BotBuilder.Toward(hero.Position, view.Home, EscapeStep);
             Move(hero, escape, attackMove: false);
             return;
@@ -147,18 +154,28 @@ public sealed class BotHeroPilot
     {
         var state = _player.HeroState;
         var dragon = mode == BotMode.Slaying ? view.Creeps.FirstOrDefault(c => c.Camp is { IsLair: true }) : null;
-        for (var slot = 0; slot < _game.Content.Abilities.Count; slot++)
+        for (var slot = 0; slot < state.Kit.Count; slot++)
         {
-            var ability = _game.Content.Abilities[slot];
-            if (state.Level >= ability.UnlockLevel && state.Cooldowns[slot] <= 0 && (TryAimAtBoss(hero, ability, dragon, out var target) || TryAim(hero, ability, out target)))
+            if (Ready(slot) && (TryAimAtBoss(hero, state.Kit[slot], dragon, out var target) || TryAim(hero, state.Kit[slot], out target)))
             {
-                _game.Commands.Apply(_player, new AbilityCommand { Slot = slot, X = target.X, Y = target.Y });
+                Cast(slot, target);
             }
         }
     }
 
+    private bool Ready(int slot)
+    {
+        var state = _player.HeroState;
+        return state.Level >= state.Kit[slot].UnlockLevel && state.Cooldowns[slot] <= 0;
+    }
+
+    private void Cast(int slot, Vector2 target)
+    {
+        _game.Commands.Apply(_player, new AbilityCommand { Slot = slot, X = target.X, Y = target.Y });
+    }
+
     /// <summary>A damaging ability that reaches the boss the army is fighting is spent on it.</summary>
-    private static bool TryAimAtBoss(Unit hero, AbilityDef ability, Unit boss, out Vector2 target)
+    private bool TryAimAtBoss(Unit hero, AbilityDef ability, Unit boss, out Vector2 target)
     {
         target = boss?.Position ?? hero.Position;
         if (boss == null || ability.Damage <= 0)
@@ -168,22 +185,68 @@ public sealed class BotHeroPilot
         var distance = boss.EdgeDistance(hero.Position);
         return ability.Effect switch
         {
-            AbilityEffect.Nova => distance <= ability.Radius,
-            AbilityEffect.Strike => distance <= ability.Range,
+            AbilityEffect.Nova => distance <= Radius(ability),
+            AbilityEffect.Strike => distance <= Range(ability),
             _ => false,
         };
     }
 
+    /// <summary>
+    /// Whether an ability is worth casting now and where. A dash that neither hits nor stuns is kept for escapes, and a
+    /// heal waits until it would restore enough health.
+    /// </summary>
     private bool TryAim(Unit hero, AbilityDef ability, out Vector2 target)
     {
         target = hero.Position;
         return ability.Effect switch
         {
-            AbilityEffect.Nova => CountEnemies(hero.Position, ability.Radius) >= _profile.NovaTargets,
-            AbilityEffect.Buff => CountAllies(hero.Position, ability.Radius) >= RallyAllies && CountEnemies(hero.Position, ability.Radius + RallyEnemyReach) > 0,
-            AbilityEffect.Dash => hero.Hp >= hero.MaxHp * ChargeHealth && TryFindCharge(hero, ability, out target),
+            AbilityEffect.Nova => CountEnemies(hero.Position, Radius(ability)) >= _profile.NovaTargets,
+            AbilityEffect.Buff => CountAllies(hero.Position, Radius(ability)) >= RallyAllies && CountEnemies(hero.Position, Radius(ability) + RallyEnemyReach) > 0,
+            AbilityEffect.Heal => MissingHealth(hero.Position, Radius(ability), _player.HeroState.AbilityHeal(ability)) >= _player.HeroState.AbilityHeal(ability) * HealWorth,
+            AbilityEffect.Dash => IsStriking(ability) && hero.Hp >= hero.MaxHp * ChargeHealth && TryFindCharge(hero, ability, out target),
             _ => TryFindCluster(hero, ability, out target),
         };
+    }
+
+    private static bool IsStriking(AbilityDef ability)
+    {
+        return ability.Damage > 0 || ability.Stun > 0;
+    }
+
+    private float Radius(AbilityDef ability)
+    {
+        return _player.HeroState.AbilityRadius(ability);
+    }
+
+    private float Range(AbilityDef ability)
+    {
+        return _player.HeroState.AbilityRange(ability);
+    }
+
+    /// <summary>Health a heal of this size would restore to the hero and its allies around a point.</summary>
+    private float MissingHealth(Vector2 center, float radius, float heal)
+    {
+        _nearby.Clear();
+        _game.Spatial.Query(center, radius, _nearby.Add);
+        return _nearby.Where(u => u.IsAlive && u.Owner != null && u.Team == _player.Team).Sum(u => MathF.Min(heal, u.MaxHp - u.Hp));
+    }
+
+    /// <summary>
+    /// A hurt hero with an enemy close uses a blink or a roll to jump toward home; true when it is dashing. A cast refused
+    /// for want of room, as with a wall on the way home, leaves the hero to walk.
+    /// </summary>
+    private bool TryEscape(Unit hero, BotView view)
+    {
+        var kit = _player.HeroState.Kit;
+        for (var slot = 0; slot < kit.Count; slot++)
+        {
+            if (kit[slot].Effect == AbilityEffect.Dash && !IsStriking(kit[slot]) && Ready(slot))
+            {
+                Cast(slot, BotBuilder.Toward(hero.Position, view.Home, Range(kit[slot])));
+                return hero.Dash != null;
+            }
+        }
+        return false;
     }
 
     /// <summary>The visible enemy whose surroundings hold the most enemies, if enough to be worth the cast.</summary>
@@ -191,15 +254,16 @@ public sealed class BotHeroPilot
     {
         target = hero.Position;
         var best = 0;
+        var radius = Radius(ability);
         _nearby.Clear();
-        _game.Spatial.Query(hero.Position, ability.Range, _nearby.Add);
+        _game.Spatial.Query(hero.Position, Range(ability), _nearby.Add);
         foreach (var candidate in _nearby.ToList())
         {
             if (candidate.Owner == null || !IsVisibleEnemy(candidate))
             {
                 continue;
             }
-            var count = CountEnemies(candidate.Position, ability.Radius);
+            var count = CountEnemies(candidate.Position, radius);
             if (count > best)
             {
                 best = count;
@@ -215,7 +279,7 @@ public sealed class BotHeroPilot
         target = hero.Position;
         var best = 0;
         _nearby.Clear();
-        _game.Spatial.Query(hero.Position, ability.Range, _nearby.Add);
+        _game.Spatial.Query(hero.Position, Range(ability), _nearby.Add);
         foreach (var candidate in _nearby.ToList())
         {
             var distance = Vector2.Distance(candidate.Position, hero.Position);

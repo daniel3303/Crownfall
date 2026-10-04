@@ -38,6 +38,35 @@ export interface UnitDef {
   growth?: { hp: number; attack: number; curve?: number };
   /** Radius around a melee blow's target in which every other enemy takes the full blow too. */
   splash?: number;
+  /** A hero's kit by slot, as ability ids. */
+  abilities?: string[];
+  /** A hero's talent tiers, one per `rules.heroTalentLevels` entry, each a choice of options. */
+  talents?: TalentDef[][];
+  /** Races that may train the unit; empty or absent means every race. */
+  races?: string[];
+  /** Level the training building must reach before it trains the unit. */
+  requiresTrainerLevel?: number;
+}
+
+/** A passive hero perk; ability modifiers apply to `ability` only, stat bonuses always. */
+export interface TalentDef {
+  id: string;
+  name: string;
+  ability?: string;
+  /** Share added to the ability's damage or healing. */
+  abilityDamage?: number;
+  /** Seconds taken off the ability's base cooldown. */
+  cooldown?: number;
+  radius?: number;
+  range?: number;
+  duration?: number;
+  stun?: number;
+  hp?: number;
+  attack?: number;
+  armor?: Armor;
+  attackSpeed?: number;
+  moveSpeed?: number;
+  lifeSteal?: number;
 }
 
 export interface BuildingDef {
@@ -120,7 +149,10 @@ export interface NodeDef {
 export interface RaceDef {
   id: string;
   name: string;
+  /** The classic hero, which a seat leads when it picks none. */
   hero: string;
+  /** Every hero a seat of this race may pick, the classic one first. */
+  heroes?: string[];
   description: string;
   buildingHpMultiplier?: number;
 }
@@ -129,7 +161,7 @@ export interface AbilityDef {
   id: string;
   name: string;
   key: string;
-  effect: "nova" | "buff" | "strike" | "dash";
+  effect: "nova" | "buff" | "strike" | "dash" | "heal";
   unlockLevel: number;
   cooldown: number;
   radius: number;
@@ -140,10 +172,18 @@ export interface AbilityDef {
   delay?: number;
   attackSpeedBonus?: number;
   speedBonus?: number;
+  /** Armor a buff adds against both damage types. */
+  armorBonus?: number;
+  /** Share a buff adds to attack damage. */
+  attackBonus?: number;
+  /** Health a heal restores at level 1, growing by `healPerLevel`. */
+  heal?: number;
+  healPerLevel?: number;
   /** Dash travel speed in tiles per second. */
   speed?: number;
-  /** Seconds a dash stuns what it hits. */
+  /** Seconds a dash or strike stuns what it hits. */
   stun?: number;
+  buildingMultiplier?: number;
   description: string;
 }
 
@@ -208,6 +248,8 @@ export interface Rules {
   heroShutdownGold: number;
   heroShutdownGoldPerKill: number;
   killStreaks: KillStreakDef[];
+  /** Hero level at which each talent tier opens. */
+  heroTalentLevels: number[];
   heroInventorySlots: number;
   /** Tiles from an own completed town center within which a hero trades items. */
   itemShopRange: number;
@@ -274,6 +316,41 @@ export function isVillager(def: UnitDef): boolean {
 
 export function isHero(def: UnitDef): boolean {
   return def.tags.includes("hero");
+}
+
+export function abilityDef(id: string): AbilityDef {
+  const def = content.abilities.find((a) => a.id === id);
+  if (!def) throw new Error(`Unknown ability ${id}`);
+  return def;
+}
+
+/** A hero's abilities by slot; a unit without a kit has none. */
+export function heroKit(heroId: string | undefined): AbilityDef[] {
+  const hero = heroId ? content.units.find((u) => u.id === heroId) : undefined;
+  return (hero?.abilities ?? []).map(abilityDef);
+}
+
+/** The heroes a race may lead, the classic one first. */
+export function raceHeroes(raceId: string | undefined): UnitDef[] {
+  const race = content.races.find((r) => r.id === raceId);
+  if (!race) return [];
+  return (race.heroes?.length ? race.heroes : [race.hero]).map(unitDef);
+}
+
+/** True when a seat of the race may train the unit. */
+export function allowsRace(def: UnitDef, raceId: string | undefined): boolean {
+  return !def.races?.length || (raceId !== undefined && def.races.includes(raceId));
+}
+
+/** The units a building trains for a seat of the race, in content order. */
+export function trainableFor(def: BuildingDef, raceId: string | undefined): string[] {
+  return (def.trains ?? []).filter((id) => allowsRace(unitDef(id), raceId));
+}
+
+/** Why a building of this level cannot train the unit yet, as the server words it, or null when it can. */
+export function trainLock(unit: UnitDef, trainer: BuildingDef, level: number): string | null {
+  const needed = unit.requiresTrainerLevel ?? 1;
+  return level >= needed ? null : `${unit.name} needs a level ${needed} ${trainer.name}.`;
 }
 
 /** Abilities that wait for a click on the ground before they are cast. */

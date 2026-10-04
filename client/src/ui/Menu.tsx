@@ -5,13 +5,14 @@ import { api } from "../net/api";
 import type { MatchConfig, MatchSummary } from "../net/protocol";
 import { session, type Profile } from "../session";
 import { enterFullscreen } from "./fullscreen";
+import { HeroPicker } from "./HeroPicker";
 import { Icon, Portrait } from "./icons";
 import { AchievementGallery } from "./meta/AchievementGallery";
 import { BotLadder } from "./meta/BotLadder";
 import { DailyChallenges } from "./meta/DailyChallenges";
 import { LegendPanel } from "./meta/LegendPanel";
 import { metaStore } from "./meta/meta-store";
-import { loadProfile, saveProfile } from "./profile";
+import { loadProfile, profileHero, saveProfile } from "./profile";
 import { store, useHud } from "./store";
 
 const DEFAULT_CONFIG: MatchConfig = {
@@ -77,6 +78,7 @@ export function Menu() {
               </button>
             ))}
           </div>
+          <HeroPicker race={profile.race} selected={profileHero(profile)} onPick={(hero) => update({ heroes: { ...profile.heroes, [profile.race]: hero } })} />
           <button
             className="btn btn-primary btn-big"
             onClick={() => {
@@ -152,7 +154,7 @@ export function Menu() {
 
         <section className="panel">
           <h2>Your legend</h2>
-          <LegendPanel name={profile.name} race={profile.race} />
+          <LegendPanel name={profile.name} race={profile.race} hero={profileHero(profile)} />
           <h3>Bot ladder</h3>
           <BotLadder
             onFight={(difficulty) => {
@@ -175,7 +177,7 @@ export function Menu() {
             <li><b>Click</b> select · <b>Right-click</b> move, gather, attack, build · <b>Right-drag</b> box-select troops · <b>Drag</b>, two-finger swipe or arrows move the map · pinch or wheel zooms</li>
             <li><b>Villagers</b>: H house · S storehouse · F farm · B barracks · T tower · C town center</li>
             <li><b>Buildings</b>: Z X C V train · U upgrade, up to level 3 · Backspace cancel · right-click sets the rally point</li>
-            <li><b>Hero</b>: Q Cleave · W Rally · E Charge · R Doomfall, cast at the cursor · hold Space to follow your hero · spend a stat point every level</li>
+            <li><b>Hero</b>: Q W E R cast its four abilities at the cursor · hold Space to follow your hero · spend a stat point every level · pick a talent at levels {content.rules.heroTalentLevels.join(", ")}</li>
             <li><b>Army</b>: A attack-move · X stop · Ctrl+1-9 groups · . idle villager · Esc deselect · Tab scores</li>
             <li>Kill creeps and enemies to level your hero; every level grows its health and attack more than the last and shortens its ability cooldowns. A fallen hero is revived for resources at a town center. Lose every town center and villager and you are out; the last team standing wins.</li>
             <li>Gold mines run dry for good; after that gold comes from creeps, market trades and enemy heroes, which pay more the higher their level. Upgraded barracks train Veteran and Elite troops.</li>

@@ -72,7 +72,7 @@ public class CombatSystemTests
         var game = TestGames.Create();
         var player = game.Players[0];
 
-        var doomfall = game.Content.Abilities.ToList().FindIndex(a => a.Id == "doomfall");
+        var doomfall = TestGames.Slot(player, "doomfall");
 
         game.Issue(player, new AbilityCommand { Slot = doomfall, X = player.Hero.Position.X, Y = player.Hero.Position.Y });
 

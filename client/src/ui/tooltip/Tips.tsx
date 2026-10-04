@@ -1,7 +1,8 @@
-import { buildingStats, content, costList, itemRefund, maxLevel, RESOURCE_NAMES, troopRank, unitDef, type AbilityDef, type BuildingDef, type Cost, type HeroStatDef, type ItemDef, type ResourceName, type UnitDef } from "../../content/content";
+import { buildingStats, content, costList, itemRefund, maxLevel, RESOURCE_NAMES, trainableFor, troopRank, unitDef, type AbilityDef, type BuildingDef, type Cost, type HeroStatDef, type ItemDef, type ResourceName, type TalentDef, type UnitDef } from "../../content/content";
 import { fitsIntoWall, isLineBuilding } from "../../game/placement";
 import type { HeroState } from "../../net/protocol";
 import { storageLevel, storageSources, upgradeChanges, upgradeRequirement } from "../hud/building-upgrades";
+import { abilityNumbers, talentLines } from "../hud/hero-kit";
 import { statEffect } from "../hud/hero-stats";
 import { itemStatLines, SHOP_BLOCK_TEXT, type ShopBlock } from "../hud/items";
 import { Icon } from "../icons";
@@ -44,8 +45,8 @@ function CostRow({ cost }: { cost?: Cost }) {
   );
 }
 
-/** A unit's card; a rank above 1 shows the health and attack of a unit trained at that building level. */
-export function UnitTip({ def, hotkey, rank = 1 }: { def: UnitDef; hotkey?: string; rank?: number }) {
+/** A unit's card; a rank above 1 shows the health and attack of a unit trained at that building level, and `lock` is why its trainer cannot train it yet. */
+export function UnitTip({ def, hotkey, rank = 1, lock }: { def: UnitDef; hotkey?: string; rank?: number; lock?: string | null }) {
   const { strong, weak } = counters(def);
   const bonus = troopRank(def.id, rank);
   return (
@@ -68,6 +69,7 @@ export function UnitTip({ def, hotkey, rank = 1 }: { def: UnitDef; hotkey?: stri
       )}
       {strong.length > 0 && <div className="tip-good">Strong against {strong.join(", ")}</div>}
       {weak.length > 0 && <div className="tip-bad">Weak against {weak.join(", ")}</div>}
+      {lock && <div className="tip-bad">{lock} Upgrade it to train them.</div>}
     </>
   );
 }
@@ -76,7 +78,10 @@ function bonusPercent(multiplier: number): string {
   return `+${Math.round((multiplier - 1) * 100)}%`;
 }
 
-export function BuildingTip({ def }: { def: BuildingDef }) {
+/** A building's card; it lists the units a seat of `race` trains there, the viewer's own race unless given. */
+export function BuildingTip({ def, race }: { def: BuildingDef; race?: string }) {
+  const myRace = useHud((s) => s.match?.players.find((p) => p.index === s.match?.you)?.race);
+  const trains = trainableFor(def, race ?? myRace);
   return (
     <>
       <Header name={def.name} hotkey={def.hotkey} />
@@ -88,7 +93,7 @@ export function BuildingTip({ def }: { def: BuildingDef }) {
         {def.pop && <Stat label="Population" value={`+${def.pop}`} />}
         {def.attack && <Stat label="Arrows" value={`${def.attack.damage} damage, range ${def.attack.range}`} />}
         {def.dropOff && <Stat label="Takes" value={def.dropOff.join(", ")} />}
-        {def.trains && <Stat label="Trains" value={def.trains.map((id) => unitDef(id).name).join(", ")} />}
+        {trains.length > 0 && <Stat label="Trains" value={trains.map((id) => unitDef(id).name).join(", ")} />}
         {(def.storage ?? 0) > 0 && <Stat label="Storage" value={`+${def.storage} of each resource`} />}
         {def.market && <Stat label="Market" value="trade for gold" />}
         {maxLevel(def) > 1 && <Stat label="Upgrades" value={`to level ${maxLevel(def)}`} />}
@@ -106,7 +111,7 @@ function placementHint(def: BuildingDef): string {
 
 const TARGET_HINT: Partial<Record<AbilityDef["effect"], string>> = {
   strike: "Press the key, then click where it lands.",
-  dash: "Press the key, then click where to charge.",
+  dash: "Press the key, then click where to go.",
 };
 
 /** An ability's cooldown after the hero's level and items, with the share they have taken off it. */
@@ -115,26 +120,56 @@ function cooldownText(base: number, factor: number): string {
   return factor < 1 ? `${seconds} (−${Math.round((1 - factor) * 100)}% from level and items)` : seconds;
 }
 
-export function AbilityTip({ ability, heroLevel, cooldownFactor }: { ability: AbilityDef; heroLevel: number; cooldownFactor: number }) {
+/** An ability as the hero casts it now: its numbers at the hero's level with every talent that changes it. */
+export function AbilityTip({ ability, heroLevel, cooldownFactor, talents = [] }: { ability: AbilityDef; heroLevel: number; cooldownFactor: number; talents?: readonly (TalentDef | null)[] }) {
   const locked = heroLevel < ability.unlockLevel;
-  const damage = ability.damage !== undefined ? ability.damage + (ability.damagePerLevel ?? 0) * Math.max(0, heroLevel - 1) : undefined;
+  const numbers = abilityNumbers(ability, heroLevel, talents);
+  const perLevel = (amount: number | undefined) => (amount ? ` (+${amount} per level)` : "");
+  const shaping = talents.filter((t): t is TalentDef => !!t && t.ability === ability.id);
   return (
     <>
       <Header name={ability.name} hotkey={ability.key} />
       <p className="tip-text">{ability.description}</p>
       <div className="tip-stats">
-        {damage !== undefined && <Stat label="Damage" value={ability.damagePerLevel ? `${damage} (+${ability.damagePerLevel} per level)` : damage} />}
-        <Stat label="Cooldown" value={cooldownText(ability.cooldown, cooldownFactor)} />
-        {ability.range !== undefined && <Stat label="Range" value={ability.range} />}
-        <Stat label="Radius" value={ability.radius} />
-        {ability.duration !== undefined && <Stat label="Lasts" value={`${ability.duration} s`} />}
-        {ability.stun !== undefined && <Stat label="Stun" value={`${ability.stun} s`} />}
+        {numbers.damage !== undefined && <Stat label="Damage" value={`${numbers.damage}${perLevel(ability.damagePerLevel)}`} />}
+        {numbers.heal !== undefined && <Stat label="Heals" value={`${numbers.heal}${perLevel(ability.healPerLevel)}`} />}
+        <Stat label="Cooldown" value={cooldownText(numbers.cooldown, cooldownFactor)} />
+        {numbers.range !== undefined && <Stat label="Range" value={numbers.range} />}
+        {numbers.radius > 0 && <Stat label="Radius" value={numbers.radius} />}
+        {numbers.duration !== undefined && <Stat label="Lasts" value={`${numbers.duration} s`} />}
+        {numbers.stun !== undefined && <Stat label="Stun" value={`${numbers.stun} s`} />}
       </div>
+      {shaping.map((talent) => (
+        <div key={talent.id} className="tip-good">
+          <Icon id="talent" /> {talent.name}: {talentLines(talent).join(", ")}
+        </div>
+      ))}
       {locked ? (
         <div className="tip-bad">Unlocks at hero level {ability.unlockLevel}</div>
       ) : (
         <div className="tip-hint">{TARGET_HINT[ability.effect] ?? "Press the key to use it."}</div>
       )}
+    </>
+  );
+}
+
+/** A talent option or pick: what it adds, and how to take it or when it was taken. */
+export function TalentTip({ talent, tierLevel, state }: { talent: TalentDef; tierLevel: number; state: "open" | "picked" }) {
+  const hint =
+    state === "open" ? (
+      <div className="tip-hint">Click to take it. A tier holds one talent for the rest of the match, through death.</div>
+    ) : (
+      <div className="tip-good">Taken at hero level {tierLevel}.</div>
+    );
+  return (
+    <>
+      <Header name={talent.name} />
+      <div className="tip-item-stats">
+        {talentLines(talent).map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </div>
+      {hint}
     </>
   );
 }

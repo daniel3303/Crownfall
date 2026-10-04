@@ -3,7 +3,7 @@ using Crownfall.Sim.Content;
 
 namespace Crownfall.Server.Matches;
 
-/// <summary>GET /ws?match=ID&amp;name=NAME&amp;race=RACE upgrades to the match WebSocket.</summary>
+/// <summary>GET /ws?match=ID&amp;name=NAME&amp;race=RACE&amp;hero=HERO upgrades to the match WebSocket.</summary>
 public static class GameSocketEndpoint
 {
     public static async Task Handle(HttpContext context, MatchRegistry registry, ContentDb content, ILogger<PlayerConnection> logger)
@@ -26,9 +26,10 @@ public static class GameSocketEndpoint
         }
         var name = PlayerNames.Sanitize(context.Request.Query["name"].ToString());
         var race = context.Request.Query["race"].ToString();
+        var hero = context.Request.Query["hero"].ToString();
         using var socket = await context.WebSockets.AcceptWebSocketAsync(new WebSocketAcceptContext { DangerousEnableCompression = true });
         var connection = new PlayerConnection(socket, logger);
-        match.Enqueue(new JoinInbound(connection, name, content.HasRace(race) ? race : null));
+        match.Enqueue(new JoinInbound(connection, name, content.HasRace(race) ? race : null, string.IsNullOrEmpty(hero) ? null : hero));
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
         var sending = connection.RunSendLoop(cancellation.Token);
         try

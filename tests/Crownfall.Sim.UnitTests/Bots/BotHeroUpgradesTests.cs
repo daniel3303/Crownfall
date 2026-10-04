@@ -107,6 +107,23 @@ public class BotHeroUpgradesTests
         bot.HeroState.Items.Should().Contain(i => i != null && i.Id == "ironSword");
     }
 
+    [Theory]
+    [InlineData(BotDifficulty.Easy)]
+    [InlineData(BotDifficulty.Hard)]
+    public void Talents_OpenTier_TakesTheProfilesOptionAndKeepsIt(BotDifficulty difficulty)
+    {
+        var (game, bot) = Seat();
+        var levels = game.Content.Rules.HeroTalentLevels;
+        game.Heroes.AddXp(bot, game.Content.Rules.HeroXpForLevel(levels[0]));
+        var pick = BotProfile.For(difficulty).TalentPicks[0];
+
+        Run(game, bot, difficulty);
+        Run(game, bot, difficulty);
+
+        bot.HeroState.Talents[0].Should().BeSameAs(bot.HeroState.Def.Talents[0][pick]);
+        bot.HeroState.Talents.Skip(1).Should().OnlyContain(t => t == null, "later tiers wait for their levels");
+    }
+
     private static BotHeroUpgrades Run(Game game, Player bot, BotDifficulty difficulty)
     {
         var upgrades = new BotHeroUpgrades(game, bot, BotProfile.For(difficulty));

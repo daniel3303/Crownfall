@@ -260,8 +260,8 @@ public class ShopSystemTests
         var rules = game.Content.Rules;
         var talisman = Item(game, "sageTalisman");
         game.Issue(player, new BuyItemCommand { Item = talisman.Id });
-        var cleave = game.Content.Abilities.First(a => a.Effect == AbilityEffect.Nova);
-        var slot = game.Content.Abilities.ToList().IndexOf(cleave);
+        var slot = TestGames.Slot(player, "cleave");
+        var cleave = player.HeroState.Kit[slot];
         player.Hero.Position = game.QuietSpot();
 
         game.Issue(player, new AbilityCommand { Slot = slot });

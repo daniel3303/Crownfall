@@ -37,8 +37,24 @@ public sealed class UnitDef
     public Dictionary<string, int> Bounty { get; set; } = [];
     public GrowthDef Growth { get; set; }
 
+    /// <summary>A hero's ability ids in key order, Q first; each id names an entry of the content's ability pool.</summary>
+    public List<string> Abilities { get; set; } = [];
+
+    /// <summary>A hero's talent tiers, one per <see cref="RulesDef.HeroTalentLevels"/> entry, each a choice of options.</summary>
+    public List<List<TalentDef>> Talents { get; set; } = [];
+
+    /// <summary>Races that may train the unit; empty for every race.</summary>
+    public List<string> Races { get; set; } = [];
+
+    /// <summary>Level the training building must have reached before it trains the unit; 0 or 1 for none.</summary>
+    public int RequiresTrainerLevel { get; set; }
+
     [JsonIgnore]
     public int Kind { get; internal set; }
+
+    /// <summary>The hero's abilities resolved from <see cref="Abilities"/>; a slot is an index into it.</summary>
+    [JsonIgnore]
+    public List<AbilityDef> Kit { get; internal set; } = [];
 
     [JsonIgnore]
     public int[] CostAmounts { get; internal set; }
@@ -74,6 +90,17 @@ public sealed class UnitDef
     public bool HasTag(string tag)
     {
         return Tags.Contains(tag);
+    }
+
+    public bool AllowsRace(string race)
+    {
+        return Races.Count == 0 || Races.Contains(race);
+    }
+
+    /// <summary>True when a building of this level may train the unit.</summary>
+    public bool TrainsAtLevel(int level)
+    {
+        return level >= RequiresTrainerLevel;
     }
 
     public float GatherRate(ResourceType type)

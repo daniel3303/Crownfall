@@ -6,8 +6,9 @@ using Crownfall.Sim.Entities;
 namespace Crownfall.Sim.Bots;
 
 /// <summary>
-/// Spends the bot hero's points by fixed weights, buys a fixed item build within the profile's budget at home and above
-/// the reserve, and pays the revive as soon as it is due. The economy holds the revive back from the moment the hero falls.
+/// Spends the bot hero's points by fixed weights, takes each talent tier's option by its profile, buys a fixed item build
+/// within the profile's budget at home and above the reserve, and pays the revive as soon as it is due. The economy holds
+/// the revive back from the moment the hero falls.
 /// </summary>
 public sealed class BotHeroUpgrades
 {
@@ -46,6 +47,11 @@ public sealed class BotHeroUpgrades
         if (_player.HeroState.UnspentPoints > 0)
         {
             _game.Commands.Apply(_player, new HeroStatCommand { Stat = NextStat() });
+        }
+        var tier = _player.HeroState.OpenTalentTier;
+        if (tier >= 0)
+        {
+            _game.Commands.Apply(_player, new PickTalentCommand { Tier = tier, Talent = TalentFor(tier).Id });
         }
         if (view.TownCenter != null && _game.Heroes.CanRevive(_player) && _player.Stock.CanAfford(_game.Heroes.ReviveCost(_player)))
         {
@@ -113,6 +119,14 @@ public sealed class BotHeroUpgrades
             }
         }
         return true;
+    }
+
+    /// <summary>The option the profile takes in a talent tier, the first when the profile names none or too high an index.</summary>
+    private TalentDef TalentFor(int tier)
+    {
+        var options = _player.HeroState.Def.Talents[tier];
+        var pick = tier < _profile.TalentPicks.Length ? _profile.TalentPicks[tier] : 0;
+        return options[pick >= 0 && pick < options.Count ? pick : 0];
     }
 
     /// <summary>The stat furthest below its weighted share of the ranks; ties go to content order.</summary>

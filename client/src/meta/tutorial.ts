@@ -59,7 +59,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   { id: "barracks", title: "Build a barracks", text: "With villagers selected press B and place it near your town center.", done: (c) => c.barracksBuilt >= 1 },
   { id: "soldiers", title: "Train 3 soldiers", text: "Select the finished barracks and press Z, X or C to train spearmen, archers or riders.", done: (c) => c.soldiersTrained >= 3 },
   { id: "wolves", title: "Clear a wolf camp", text: "Select your hero (click it, or hold Space) and right-click the wolves out in the wilds. Bring your soldiers along.", done: (c) => c.wolvesSlain >= CAMP_WOLVES },
-  { id: "ability", title: "Use a hero ability", text: "With your hero selected press Q to cleave everything around it. Charge, Rally and Doomfall unlock as your hero levels up.", done: (c) => c.abilitiesCast >= 1 },
+  { id: "ability", title: "Use a hero ability", text: "Press Q to cast your hero's first ability. Its W, E and R abilities unlock as your hero levels up.", done: (c) => c.abilitiesCast >= 1 },
   { id: "upgrade", title: "Upgrade a building", text: "Select a building and press U. Upgrades add health, storage and stronger troops.", done: (c) => c.upgrades >= 1 },
 ];
 

@@ -32,6 +32,9 @@ public sealed class HeroView
     /// <summary>Enemy heroes slain since the hero last died.</summary>
     public int Streak { get; init; }
 
+    /// <summary>Picked talent id per tier, null where the tier is unpicked; the tiers open at <c>rules.heroTalentLevels</c>.</summary>
+    public string[] Talents { get; init; } = [];
+
     /// <summary>What ability cooldowns are multiplied by now, from the hero's level and items.</summary>
     public float CooldownFactor { get; init; }
 

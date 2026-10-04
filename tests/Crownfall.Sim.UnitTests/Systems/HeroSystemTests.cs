@@ -10,6 +10,27 @@ namespace Crownfall.Sim.UnitTests.Systems;
 public class HeroSystemTests
 {
     [Fact]
+    public void Growth_FullHeroLevelledInSmallStepsWithTalentsAndRanks_StaysExactlyAtMaxHealth()
+    {
+        var game = TestGames.CreateWithHeroes("paladin", "blademaster");
+        var player = game.Players[1];
+        player.Hero.Position = game.QuietSpot();
+        while (player.HeroState.Level < 12)
+        {
+            game.Heroes.AddXp(player, 7);
+            game.Step([]);
+        }
+
+        game.Issue(player, new PickTalentCommand { Tier = 0, Talent = "razorWind" });
+        game.Issue(player, new PickTalentCommand { Tier = 1, Talent = "bloodEdge" });
+        game.Issue(player, new HeroStatCommand { Stat = "maxHealth" });
+
+        var hero = player.Hero;
+        hero.MaxHp.Should().NotBe(MathF.Round(hero.MaxHp), "a fractional maximum is the case a display can round apart");
+        hero.Hp.Should().Be(hero.MaxHp, "every growth adds the same amount to both, so a full hero stays exactly full");
+    }
+
+    [Fact]
     public void Regen_BeforeDelay_DoesNotHeal()
     {
         var (game, hero) = WoundedHero();
@@ -155,7 +176,7 @@ public class HeroSystemTests
     {
         var (game, player) = LeveledPlayer(points: 1);
         var hero = player.Hero;
-        var rally = game.Content.Abilities.First(a => a.Id == "rally");
+        var rally = game.Content.Ability("rally");
         Learn(game, player, "attackSpeed", 1);
 
         hero.Buff = rally;

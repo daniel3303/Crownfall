@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { content } from "../content/content";
+import { content, unitDef } from "../content/content";
 import { session } from "../session";
 import { enterFullscreen } from "./fullscreen";
+import { HeroPicker } from "./HeroPicker";
 import { Icon, Portrait } from "./icons";
 import { bannerStyle, frameStyle, OwnFlair, useLook } from "./meta/cosmetics";
 import { teamColor, TEAM_NAMES } from "./palette";
-import { loadProfile, saveProfile } from "./profile";
+import { loadProfile, profileHero, rememberHero, saveProfile } from "./profile";
 import { useHud } from "./store";
 
 /** Typing pauses this long before the new name goes to the other players. */
@@ -51,11 +52,12 @@ export function LobbyScreen() {
             <ul>
               {seats.map((seat) => (
                 <li key={seat.index} className={seat.index === lobby.you ? "me" : ""} style={seat.index === lobby.you ? bannerStyle(look.banner) : undefined}>
-                  <span className="seat-portrait" style={seat.index === lobby.you ? frameStyle(look.frame) : undefined}><Portrait id={content.races.find((r) => r.id === seat.race)?.hero ?? ""} /></span>
+                  <span className="seat-portrait" style={seat.index === lobby.you ? frameStyle(look.frame) : undefined}><Portrait id={seat.hero ?? content.races.find((r) => r.id === seat.race)?.hero ?? ""} /></span>
                   <span className="seat-name">
                     {seat.name}
                     {seat.isHost && <> <Icon id="host" /></>}
                     {seat.index === lobby.you && <OwnFlair />}
+                    {seat.hero && <small className="seat-hero"> {unitDef(seat.hero).name}</small>}
                   </span>
                   <small>{seat.isBot ? "bot" : "player"}</small>
                 </li>
@@ -73,7 +75,7 @@ export function LobbyScreen() {
         {me && <NameField key={lobby.you} current={me.name} />}
         <label className="field inline">
           Race
-          <select value={me?.race} onChange={(e) => session.link?.setRace(e.target.value)}>
+          <select value={me?.race} onChange={(e) => pickRace(e.target.value)}>
             {content.races.map((race) => (
               <option key={race.id} value={race.id}>
                 {race.name}
@@ -81,6 +83,11 @@ export function LobbyScreen() {
             ))}
           </select>
         </label>
+        {me && (
+          <div className="lobby-heroes">
+            <HeroPicker race={me.race} selected={me.hero} onPick={(hero) => pickHero(me.race, hero)} />
+          </div>
+        )}
         {me?.isHost ? (
           <button
             className="btn btn-primary"
@@ -100,6 +107,17 @@ export function LobbyScreen() {
       </div>
     </div>
   );
+}
+
+/** Switches the seat's race and leads the hero last picked for it, which the server checks belongs to the race. */
+function pickRace(race: string): void {
+  session.link?.setRace(race);
+  session.link?.setHero(profileHero({ ...loadProfile(), race }));
+}
+
+function pickHero(race: string, hero: string): void {
+  session.link?.setHero(hero);
+  rememberHero(race, hero);
 }
 
 /** Renames the player's seat as they type, and remembers the name for the next match. */

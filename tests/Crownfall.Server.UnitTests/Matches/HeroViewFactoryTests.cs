@@ -68,6 +68,36 @@ public class HeroViewFactoryTests
         stats.Regenerating.Should().BeTrue();
     }
 
+    [Fact]
+    public void Create_PickedTalent_ListsItInItsTierAndCountsItInTheStats()
+    {
+        var (game, player) = Seat();
+        game.Heroes.AddXp(player, game.Content.Rules.HeroXpForLevel(game.Content.Rules.HeroTalentLevels[0]));
+        var before = HeroViewFactory.Create(game, player);
+
+        game.Commands.Apply(player, new PickTalentCommand { Tier = 0, Talent = "bulwark" });
+        var view = HeroViewFactory.Create(game, player);
+
+        before.Talents.Should().Equal(null, null, null);
+        view.Talents.Should().Equal("bulwark", null, null);
+        view.Stats.ArmorMelee.Should().Be(before.Stats.ArmorMelee + 2);
+    }
+
+    [Fact]
+    public void Create_PickedHero_ReportsItsUnitAndACooldownPerKitSlot()
+    {
+        var content = ContentDb.Load(ContentDb.FindDefaultPath());
+        var game = new Game(content, new MatchConfig { Seed = 1, Teams = 2, PlayersPerTeam = 1 }, [
+            new PlayerSetup { Name = "A", Team = 0, Race = "humans", Hero = "archmage" },
+            new PlayerSetup { Name = "B", Team = 1, Race = "orcs" },
+        ]);
+
+        var view = HeroViewFactory.Create(game, game.Players[0]);
+
+        view.Unit.Should().Be("archmage");
+        view.Cooldowns.Should().HaveCount(content.Unit("archmage").Kit.Count);
+    }
+
     private static (Game Game, Player Player) Seat()
     {
         var content = ContentDb.Load(ContentDb.FindDefaultPath());
