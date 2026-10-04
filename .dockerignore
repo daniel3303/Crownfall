@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/node_modules
+**/TestResults
+client/dist
+src/Crownfall.Server/wwwroot
+.git
+.claude
+*.md
+tools/assets/.cache
+docs

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Crownfall.Sim/Crownfall.Sim.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Crownfall.Server.UnitTests" />
+    <InternalsVisibleTo Include="Crownfall.Server.IntegrationTests" />
+  </ItemGroup>
+</Project>

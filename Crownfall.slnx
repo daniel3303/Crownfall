@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Crownfall.Server/Crownfall.Server.csproj" />
+    <Project Path="src/Crownfall.Sim/Crownfall.Sim.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Crownfall.Server.IntegrationTests/Crownfall.Server.IntegrationTests.csproj" />
+    <Project Path="tests/Crownfall.Server.UnitTests/Crownfall.Server.UnitTests.csproj" />
+    <Project Path="tests/Crownfall.Sim.UnitTests/Crownfall.Sim.UnitTests.csproj" />
+  </Folder>
+</Solution>

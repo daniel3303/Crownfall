@@ -1,0 +1,8 @@
+bin/
+obj/
+node_modules/
+client/dist/
+src/Crownfall.Server/wwwroot/
+*.user
+.DS_Store
+TestResults/

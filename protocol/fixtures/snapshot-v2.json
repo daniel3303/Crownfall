@@ -1,0 +1,9 @@
+{
+  "tick": 4660,
+  "entities": [
+    { "id": 7, "kind": 0, "owner": 2, "x": 12345, "y": 6789, "hp": 40, "maxHp": 40, "state": 3, "facing": 64, "extra": 10, "flags": 2, "attackSpeed": 83 },
+    { "id": 70000, "kind": 9, "owner": 1, "x": 25600, "y": 300, "hp": 2880, "maxHp": 2880, "state": 0, "facing": 0, "extra": 55, "flags": 33, "attackSpeed": 64 },
+    { "id": 65537, "kind": 15, "owner": 255, "x": 65535, "y": 0, "hp": 800, "maxHp": 800, "state": 0, "facing": 255, "extra": 0, "flags": 0, "attackSpeed": 64 },
+    { "id": 8, "kind": 1, "owner": 0, "x": 100, "y": 200, "hp": 75, "maxHp": 75, "state": 4, "facing": 10, "extra": 3, "flags": 0, "attackSpeed": 255 }
+  ]
+}

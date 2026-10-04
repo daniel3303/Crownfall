@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Crownfall.Sim.UnitTests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,28 @@
+{
+  "name": "crownfall-assets",
+  "private": true,
+  "type": "module",
+  "description": "Builds the game's assets: unit characters and portraits from CC0 Quaternius packs, lake plants from the CC0 KayKit pack, CC0 photo-scanned ground and building textures, a CC0 sky probe, ez-tree trees and CC0 sounds.",
+  "scripts": {
+    "build": "node build.mjs && node characters.mjs && node portraits.mjs && node terrain.mjs && node materials.mjs && node buildings.mjs && node sky.mjs && node trees.mjs && node sounds.mjs",
+    "build:models": "node build.mjs",
+    "build:characters": "node characters.mjs",
+    "build:portraits": "node portraits.mjs",
+    "build:terrain": "node terrain.mjs",
+    "build:materials": "node materials.mjs",
+    "build:buildings": "node buildings.mjs",
+    "build:sky": "node sky.mjs",
+    "build:trees": "node trees.mjs",
+    "build:sounds": "node sounds.mjs"
+  },
+  "devDependencies": {
+    "@dgreenheck/ez-tree": "1.1.0",
+    "@gltf-transform/core": "^4.2.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.2.1",
+    "meshoptimizer": "1.3.0",
+    "playwright-core": "1.63.0",
+    "sharp": "^0.34.4",
+    "three": "0.170.0"
+  }
+}
