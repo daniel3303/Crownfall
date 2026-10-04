@@ -1,5 +1,5 @@
 import { session } from "../../session";
-import { useHud } from "../store";
+import { NOTICE_MS, useHud } from "../store";
 
 export function Notices() {
   const notices = useHud((s) => s.notices);
@@ -7,7 +7,7 @@ export function Notices() {
   return (
     <div className="notices">
       {notices
-        .filter((n) => now - n.at < 5000)
+        .filter((n) => now - n.at < NOTICE_MS)
         .map((notice) => (
           <div
             key={notice.id}

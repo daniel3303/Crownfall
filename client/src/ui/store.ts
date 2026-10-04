@@ -112,6 +112,9 @@ const initial: HudState = {
   announcements: [],
 };
 
+/** How long a toast notice stays on screen. */
+export const NOTICE_MS = 5000;
+
 /** A tiny external store so the 60 fps game loop can feed React without re-rendering every frame. */
 class HudStore {
   private state: HudState = initial;
@@ -132,10 +135,18 @@ class HudStore {
   notify(text: string, tone: string, x?: number, y?: number): void {
     const now = performance.now();
     // A repeated message (a spammed hotkey) refreshes its one toast instead of stacking copies.
-    const kept = this.state.notices.filter((n) => now - n.at < 5000 && n.text !== text);
+    const kept = this.state.notices.filter((n) => now - n.at < NOTICE_MS && n.text !== text);
     const notices = [...kept, { id: ++this.noticeSerial, text, tone, x, y, at: now }].slice(-5);
     this.set({ notices });
+    // Nothing else re-renders the toasts when they age out, so the store drops each one once it expires.
+    setTimeout(this.expireNotices, NOTICE_MS + 50);
   }
+
+  private expireNotices = (): void => {
+    const now = performance.now();
+    const notices = this.state.notices.filter((n) => now - n.at < NOTICE_MS);
+    if (notices.length !== this.state.notices.length) this.set({ notices });
+  };
 
   announce(next: Omit<Announcement, "id" | "start">): void {
     this.set({ announcements: queueAnnouncement(this.state.announcements, { ...next, id: ++this.noticeSerial }, performance.now()) });
